@@ -60,7 +60,6 @@ pubspec.lock
 *.js.map
 
 config.dart
-constants.dart
 firebase_options.dart
 
 # Firebase related files
