@@ -1,33 +1,35 @@
 import 'package:flutter/material.dart';
 import '../utils/constants.dart';
+import '../models/indicator.dart';
 
+/// Displays a horizontal row of indicators for a token.
+/// Fully typed: uses [Indicator] model directly.
 class IndicatorRowWidget extends StatelessWidget {
-  /// Each indicator map:
-  /// { "label": String, "value": num/String, "icon": IconData, "bullish": bool }
-  final List<Map<String, dynamic>> indicators;
+  final List<Indicator> indicators;
 
   const IndicatorRowWidget({super.key, required this.indicators});
 
-  Widget _buildIndicator(Map<String, dynamic> indicator) {
-    final label = indicator['label'] as String;
-    final rawValue = indicator['value'];
-    final value = rawValue is num
-        ? rawValue.toStringAsFixed(2)
-        : rawValue.toString();
-    final icon = indicator['icon'] as IconData;
-    final bullish = indicator['bullish'] as bool;
+  /// Builds a single indicator widget: label, value, icon
+  Widget _buildIndicator(Indicator indicator) {
+    // Try parsing numeric value for consistent formatting
+    final numericValue = double.tryParse(indicator.value);
+    final displayValue = numericValue != null
+        ? numericValue.toStringAsFixed(2)
+        : indicator.value;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: KTextStyles.indicatorLabel),
+        Text(indicator.label, style: KTextStyles.indicatorLabel),
         const SizedBox(width: KSpacing.xs),
-        Text(value, style: KTextStyles.indicatorValue),
+        Text(displayValue, style: KTextStyles.indicatorValue),
         const SizedBox(width: KSpacing.xxs),
         Icon(
-          icon,
+          indicator.icon,
           size: KSizes.indicatorIconSize,
-          color: bullish ? KColors.accentPositive : KColors.accentNegative,
+          color: indicator.bullish
+              ? KColors.accentPositive
+              : KColors.accentNegative,
         ),
       ],
     );

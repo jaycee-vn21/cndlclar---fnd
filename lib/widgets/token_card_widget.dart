@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cndlclar/utils/constants.dart';
+import 'package:cndlclar/models/indicator.dart';
 import 'sparkline_widget.dart';
 import 'indicator_row_widget.dart';
 
@@ -13,7 +14,7 @@ class TokenCardWidget extends StatelessWidget {
   final double? marketCap;
 
   final List<double> sparklineData;
-  final Map<String, dynamic> indicators;
+  final List<Indicator> indicators; // fully typed model
 
   const TokenCardWidget({
     super.key,
@@ -27,6 +28,9 @@ class TokenCardWidget extends StatelessWidget {
     required this.indicators,
   });
 
+  // -----------------------------
+  // Format large numbers like 1.2M, 5B, etc.
+  // -----------------------------
   String _formatLargeNumber(double value) {
     if (value >= 1e12) return "${(value / 1e12).toStringAsFixed(2)}T";
     if (value >= 1e9) return "${(value / 1e9).toStringAsFixed(2)}B";
@@ -35,6 +39,9 @@ class TokenCardWidget extends StatelessWidget {
     return value.toStringAsFixed(0);
   }
 
+  // -----------------------------
+  // Build a single metric row (Selected Interval, 24h change, etc.)
+  // -----------------------------
   Widget _buildMetricRow(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -57,29 +64,6 @@ class TokenCardWidget extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Widget _buildIndicators() {
-    final List<Map<String, dynamic>> indicatorList = indicators.entries.map((
-      e,
-    ) {
-      final key = e.key; // "ema", "rsi", "macd"...
-      final valueMap = e.value as Map<String, dynamic>;
-      final iconMap = {
-        "ema": Icons.trending_up,
-        "rsi": Icons.show_chart,
-        "macd": Icons.multiline_chart,
-        "stoch": Icons.stacked_line_chart,
-      };
-      return {
-        "label": key.toUpperCase(),
-        "value": valueMap["value"],
-        "icon": iconMap[key] ?? Icons.trending_up,
-        "bullish": valueMap["bullish"] ?? true,
-      };
-    }).toList();
-
-    return IndicatorRowWidget(indicators: indicatorList);
   }
 
   @override
@@ -117,10 +101,10 @@ class TokenCardWidget extends StatelessWidget {
               ),
               const SizedBox(height: KSpacing.sm),
 
-              // --- Indicators ---
-              _buildIndicators(),
+              // --- Indicators (uses Indicator model directly) ---
+              IndicatorRowWidget(indicators: indicators),
 
-              // --- Sparkline ---
+              // --- Sparkline chart ---
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: KSpacing.xs),
                 child: SparklineWidget(data: sparklineData),

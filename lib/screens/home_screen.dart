@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
@@ -14,64 +13,22 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<String> intervals = ['1m', '5m', '15m', '1h', '1d'];
-  final Random _random = Random();
   Timer? _timer;
-
-  // Store sparkline & indicator data per token
-  late Map<String, List<double>> tokenSparklines;
-  late Map<String, Map<String, dynamic>> tokenIndicators;
 
   @override
   void initState() {
     super.initState();
-    tokenSparklines = {};
-    tokenIndicators = {};
 
-    // --- Optimized Timer ---
+    // -----------------------------
+    // Dummy data updater (optional)
+    // Remove or disable in production when using real backend
+    // -----------------------------
     _timer = Timer.periodic(const Duration(milliseconds: 800), (_) {
       final tokensProvider = Provider.of<TokensProvider>(
         context,
         listen: false,
       );
-      final tokens = tokensProvider.getTokens();
-
-      // Only update the data maps; no full widget rebuild yet
-      for (final token in tokens) {
-        // --- Update sparkline ---
-        final data = tokenSparklines[token.name] ?? [];
-        if (data.isNotEmpty) {
-          final last = data.last;
-          final newPoint =
-              last + (_random.nextDouble() - 0.5) * token.price * 0.01;
-          tokenSparklines[token.name] = [...data.skip(1), newPoint];
-        }
-
-        // --- Update dummy indicators ---
-        tokenIndicators[token.name] = {
-          "ema": {
-            "value":
-                "${(token.price / 1000).toStringAsFixed(1)}/${(token.price / 1050).toStringAsFixed(1)}",
-            "bullish": _random.nextBool(),
-          },
-          "rsi": {
-            "value": (30 + _random.nextInt(70)).toString(),
-            "bullish": _random.nextBool(),
-          },
-          "macd": {
-            "value": (token.price * 0.0001 * _random.nextDouble())
-                .toStringAsFixed(2),
-            "bullish": _random.nextBool(),
-          },
-          "stoch": {
-            "value": (10 + _random.nextInt(90)).toString(),
-            "bullish": _random.nextBool(),
-          },
-        };
-      }
-
-      // Trigger rebuild **only if mounted**
-      if (mounted) setState(() {});
+      tokensProvider.updateDummyData();
     });
   }
 
@@ -81,31 +38,11 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Generate initial sparkline
-  List<double> generateSparkline(double basePrice) {
-    return List.generate(
-      20,
-      (index) => basePrice + (_random.nextDouble() - 0.5) * basePrice * 0.03,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    // --- Use Consumer for token list only, reducing rebuilds ---
     return Consumer<TokensProvider>(
       builder: (context, tokensProvider, child) {
         final tokens = tokensProvider.getTokens();
-
-        // Initialize sparklines and indicators if not yet created
-        for (final token in tokens) {
-          tokenSparklines[token.name] ??= generateSparkline(token.price);
-          tokenIndicators[token.name] ??= {
-            "ema": {"value": "15/14", "bullish": true},
-            "rsi": {"value": "72", "bullish": false},
-            "macd": {"value": "0.32", "bullish": true},
-            "stoch": {"value": "18", "bullish": false},
-          };
-        }
 
         return Scaffold(
           backgroundColor: KColors.background,
@@ -117,12 +54,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           body: Column(
             children: [
+              // -----------------------------
               // Interval Selector
-              _IntervalSelector(intervals: intervals),
+              // -----------------------------
+              _IntervalSelector(
+                intervals: const ['1m', '5m', '15m', '1h', '1d'],
+              ),
 
               const SizedBox(height: KSpacing.md),
 
+              // -----------------------------
               // Tokens List
+              // -----------------------------
               Expanded(
                 child: ListView.builder(
                   physics: const BouncingScrollPhysics(),
@@ -134,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context, index) {
                     final token = tokens[index];
 
-                    // Wrap TokenCardWidget in ValueListenableBuilder for partial updates
+                    // TokenCardWidget now receives cleanly parsed model data
                     return Padding(
                       padding: const EdgeInsets.only(bottom: KSpacing.md),
                       child: TokenCardWidget(
@@ -144,8 +87,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         dailyChange: token.change1d,
                         volume: token.volume,
                         marketCap: token.marketCap,
-                        sparklineData: tokenSparklines[token.name]!,
-                        indicators: tokenIndicators[token.name]!,
+                        sparklineData:
+                            tokensProvider.tokenSparklines[token.name] ?? [],
+                        indicators: token.indicators,
                       ),
                     );
                   },
@@ -175,6 +119,7 @@ class _IntervalSelector extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: intervals.map((interval) {
           final isSelected = tokensProvider.selectedInterval == interval;
+
           return Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: KSizes.intervalButtonSpacing,
