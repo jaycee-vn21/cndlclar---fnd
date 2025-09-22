@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../utils/constants.dart';
+import 'package:cndlclar/utils/constants.dart';
 
 class SparklineWidget extends StatelessWidget {
   final List<double> data;

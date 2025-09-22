@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../utils/constants.dart';
-import '../models/indicator.dart';
+import 'package:cndlclar/models/indicator.dart';
+import 'package:cndlclar/utils/constants.dart';
 
 /// Displays a horizontal row of indicators for a token.
 /// Fully typed: uses [Indicator] model directly.

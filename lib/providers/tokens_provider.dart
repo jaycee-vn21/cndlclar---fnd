@@ -5,7 +5,6 @@ import 'package:cndlclar/models/indicator.dart';
 
 class TokensProvider with ChangeNotifier {
   List<Token> _tokens = [];
-  String selectedInterval = '1m';
 
   // Stores sparkline data per token
   Map<String, List<double>> tokenSparklines = {};
@@ -18,11 +17,6 @@ class TokensProvider with ChangeNotifier {
   }
 
   List<Token> getTokens() => _tokens;
-
-  void setSelectedInterval(String interval) {
-    selectedInterval = interval;
-    notifyListeners();
-  }
 
   // --------------------------
   // --- DUMMY DATA METHODS ---

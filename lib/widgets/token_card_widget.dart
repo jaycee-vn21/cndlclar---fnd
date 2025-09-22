@@ -1,9 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:cndlclar/utils/constants.dart';
 import 'package:cndlclar/models/indicator.dart';
-import 'sparkline_widget.dart';
-import 'indicator_row_widget.dart';
+import 'package:cndlclar/widgets/indicator_row_widget.dart';
+import 'package:cndlclar/widgets/sparkline_widget.dart';
+import 'package:cndlclar/utils/constants.dart';
 
 class TokenCardWidget extends StatelessWidget {
   final String tokenName;

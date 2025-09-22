@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
-import 'package:cndlclar/utils/constants.dart';
+import 'package:cndlclar/widgets/interval_selector_widget.dart';
 import 'package:cndlclar/widgets/token_card_widget.dart';
+import 'package:cndlclar/utils/constants.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -57,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // -----------------------------
               // Interval Selector
               // -----------------------------
-              _IntervalSelector(
+              IntervalSelectorWidget(
                 intervals: const ['1m', '5m', '15m', '1h', '1d'],
               ),
 
@@ -77,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context, index) {
                     final token = tokens[index];
 
-                    // TokenCardWidget now receives cleanly parsed model data
+                    // TokenCardWidget
                     return Padding(
                       padding: const EdgeInsets.only(bottom: KSpacing.md),
                       child: TokenCardWidget(
@@ -99,61 +100,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _IntervalSelector extends StatelessWidget {
-  final List<String> intervals;
-  const _IntervalSelector({required this.intervals});
-
-  @override
-  Widget build(BuildContext context) {
-    final tokensProvider = Provider.of<TokensProvider>(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: KSizes.intervalButtonVerticalPadding,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: intervals.map((interval) {
-          final isSelected = tokensProvider.selectedInterval == interval;
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: KSizes.intervalButtonSpacing,
-            ),
-            child: GestureDetector(
-              onTap: () => tokensProvider.setSelectedInterval(interval),
-              child: AnimatedContainer(
-                duration: KDurations.fastAnimation,
-                constraints: const BoxConstraints(
-                  minWidth: KSizes.intervalButtonMinWidth,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: KSizes.intervalButtonHorizontalPadding,
-                  vertical: KSizes.intervalButtonVerticalPadding,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? KColors.accentPositive
-                      : KColors.intervalUnselected,
-                  borderRadius: BorderRadius.circular(
-                    KSizes.intervalButtonBorderRadius,
-                  ),
-                ),
-                child: Text(
-                  interval,
-                  style: isSelected
-                      ? KTextStyles.intervalSelected
-                      : KTextStyles.interval,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
     );
   }
 }

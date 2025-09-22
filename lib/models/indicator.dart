@@ -1,20 +1,5 @@
 import 'package:flutter/material.dart';
 
-// ---------- Example Backend Response (per token) -------
-// {
-//   "name": "BTC",
-//   "price": 30000,
-//   "change1d": 1.2,
-//   "changeSelectedInterval": 0.5,
-//   "volume": 45000000000,
-//   "marketCap": 550000000000,
-//   "indicators": [
-//     { "key": "ema", "label": "EMA 9/21", "value": "29.5/28.7", "bullish": true },
-//     { "key": "rsi", "label": "RSI", "value": "72", "bullish": false },
-//     { "key": "macd", "label": "MACD", "value": "0.13", "bullish": true }
-//   ]
-// }
-
 class Indicator {
   final String key; // e.g., "ema", "rsi", "macd"
   final String label; // e.g., "EMA 9/21", "EMA 21/50"
