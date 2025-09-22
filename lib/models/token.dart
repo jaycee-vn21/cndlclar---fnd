@@ -3,8 +3,8 @@ class Token {
   final double price;
   final double change1d;
   final double changeSelectedInterval;
-  final double? volume; // dummy volume
-  final double? marketCap; // dummy market cap
+  final double? volume;
+  final double? marketCap;
 
   Token({
     required this.name,
@@ -15,15 +15,14 @@ class Token {
     this.marketCap,
   });
 
-  factory Token.fromJson(Map<String, dynamic> json, String selectedInterval) {
+  factory Token.fromMap(Map<String, dynamic> map) {
     return Token(
-      name: json['symbol'] ?? '',
-      price: (json['price'] ?? 0).toDouble(),
-      change1d: (json['change_1d'] ?? 0).toDouble(),
-      changeSelectedInterval: (json['change_$selectedInterval'] ?? 0)
-          .toDouble(),
-      volume: (json['volume'] ?? 0).toDouble(),
-      marketCap: (json['marketCap'] ?? 0).toDouble(),
+      name: map["name"],
+      price: map["price"].toDouble(),
+      change1d: map["change1d"].toDouble(),
+      changeSelectedInterval: map["changeSelectedInterval"].toDouble(),
+      volume: map["volume"]?.toDouble(),
+      marketCap: map["marketCap"]?.toDouble(),
     );
   }
 }

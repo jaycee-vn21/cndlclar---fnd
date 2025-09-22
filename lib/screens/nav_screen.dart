@@ -35,15 +35,15 @@ class _NavScreenState extends State<NavScreen> {
           borderRadius: BorderRadius.circular(KSizes.navBarBorderRadius),
           child: BackdropFilter(
             filter: ImageFilter.blur(
-              sigmaX: KSizes.navGlassBlurSigma,
-              sigmaY: KSizes.navGlassBlurSigma,
+              sigmaX: KEffects.tokenCardBlurSigma,
+              sigmaY: KEffects.tokenCardBlurSigma,
             ),
             child: Container(
               height: KSizes.navBarHeight,
               decoration: BoxDecoration(
                 gradient: KGradients.navGlass,
-                color: KColors.floatingBarBase.withOpacity(
-                  KSizes.navGlassOpacity,
+                color: KColors.cardBackground.withValues(
+                  alpha: KEffects.tokenCardBackgroundOpacity,
                 ),
                 borderRadius: BorderRadius.circular(KSizes.navBarBorderRadius),
                 boxShadow: [KShadows.nav],
@@ -64,8 +64,8 @@ class _NavScreenState extends State<NavScreen> {
                       ),
                       decoration: isSelected
                           ? BoxDecoration(
-                              color: KColors.activeTabHighlight.withOpacity(
-                                KSizes.activeTabHighlightOpacity,
+                              color: KColors.cardBackground.withValues(
+                                alpha: KEffects.tokenCardBackgroundOpacity,
                               ),
                               borderRadius: BorderRadius.circular(
                                 KSizes.navIconBorderRadius,

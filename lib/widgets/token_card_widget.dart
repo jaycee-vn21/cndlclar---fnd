@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cndlclar/utils/constants.dart';
 import 'sparkline_widget.dart';
+import 'indicator_row_widget.dart';
 
 class TokenCardWidget extends StatelessWidget {
   final String tokenName;
@@ -11,7 +12,8 @@ class TokenCardWidget extends StatelessWidget {
   final double? volume;
   final double? marketCap;
 
-  final List<double>? sparklineData;
+  final List<double> sparklineData;
+  final Map<String, dynamic> indicators;
 
   const TokenCardWidget({
     super.key,
@@ -21,7 +23,8 @@ class TokenCardWidget extends StatelessWidget {
     required this.dailyChange,
     this.volume,
     this.marketCap,
-    this.sparklineData,
+    required this.sparklineData,
+    required this.indicators,
   });
 
   String _formatLargeNumber(double value) {
@@ -56,21 +59,44 @@ class TokenCardWidget extends StatelessWidget {
     );
   }
 
+  Widget _buildIndicators() {
+    final List<Map<String, dynamic>> indicatorList = indicators.entries.map((
+      e,
+    ) {
+      final key = e.key; // "ema", "rsi", "macd"...
+      final valueMap = e.value as Map<String, dynamic>;
+      final iconMap = {
+        "ema": Icons.trending_up,
+        "rsi": Icons.show_chart,
+        "macd": Icons.multiline_chart,
+        "stoch": Icons.stacked_line_chart,
+      };
+      return {
+        "label": key.toUpperCase(),
+        "value": valueMap["value"],
+        "icon": iconMap[key] ?? Icons.trending_up,
+        "bullish": valueMap["bullish"] ?? true,
+      };
+    }).toList();
+
+    return IndicatorRowWidget(indicators: indicatorList);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(KSizes.tokenCardBorderRadius),
       child: BackdropFilter(
         filter: ImageFilter.blur(
-          sigmaX: KSizes.tokenCardBlurSigma,
-          sigmaY: KSizes.tokenCardBlurSigma,
+          sigmaX: KEffects.tokenCardBlurSigma,
+          sigmaY: KEffects.tokenCardBlurSigma,
         ),
         child: Container(
           padding: const EdgeInsets.all(KSizes.tokenCardPadding),
           decoration: BoxDecoration(
             gradient: KGradients.tokenCard,
-            color: KColors.cardBackground.withOpacity(
-              KSizes.tokenCardBackgroundOpacity,
+            color: KColors.cardBackground.withValues(
+              alpha: KEffects.tokenCardBackgroundOpacity,
             ),
             borderRadius: BorderRadius.circular(KSizes.tokenCardBorderRadius),
             boxShadow: [KShadows.tokenCard],
@@ -78,7 +104,7 @@ class TokenCardWidget extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Name + Price
+              // --- Row 1: Token Name + Price ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -89,21 +115,19 @@ class TokenCardWidget extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: KSpacing.sm),
 
-              // Sparkline
-              if (sparklineData != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: KSizes.tokenSparklineVerticalSpacing,
-                  ),
-                  child: SparklineWidget(data: sparklineData!),
-                ),
+              // --- Indicators ---
+              _buildIndicators(),
 
+              // --- Sparkline ---
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: KSpacing.xs),
+                child: SparklineWidget(data: sparklineData),
+              ),
               const SizedBox(height: KSpacing.sm),
 
-              // Metrics
+              // --- Metrics ---
               _buildMetricRow(
                 "Selected Interval",
                 "${selectedIntervalChange >= 0 ? '+' : ''}${selectedIntervalChange.toStringAsFixed(2)}%",

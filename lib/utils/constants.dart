@@ -31,18 +31,13 @@ class KSizes {
   static const navIconPadding = 12.0;
   static const navIconBorderRadius = 16.0;
   static const navBarBorderRadius = 30.0;
-  static const navGlassBlurSigma = 20.0;
-  static const navGlassOpacity = 0.2;
   static const navIconSelectedScale = 1.2;
   static const navIconUnselectedScale = 1.0;
-  static const activeTabHighlightOpacity = 0.3;
 
   // Token Card
   static const tokenCardHeight = 120.0;
   static const tokenCardPadding = 16.0;
   static const tokenCardBorderRadius = 20.0;
-  static const tokenCardBlurSigma = 14.0;
-  static const tokenCardBackgroundOpacity = 0.48;
 
   static const tokenCardMetricSpacing = 6.0;
   static const tokenMetricVerticalSpacing = 6.0;
@@ -52,7 +47,9 @@ class KSizes {
   static const tokenMetricsAreaFraction = 0.44;
 
   static const tokenSparklineHeight = 40.0;
-  static const double tokenSparklineVerticalSpacing = 6.0;
+  static const tokenSparklineVerticalSpacing = 6.0;
+
+  static const indicatorIconSize = 16.0;
 
   // Interval Selector
   static const intervalButtonHeight = 36.0;
@@ -70,6 +67,7 @@ class KSizes {
 
 /// ---------------- Spacing ----------------
 class KSpacing {
+  static const xxs = 2.0;
   static const xs = 4.0;
   static const sm = 8.0;
   static const md = 12.0;
@@ -125,6 +123,32 @@ class KTextStyles {
     fontSize: 14,
     fontWeight: FontWeight.bold,
   );
+
+  static const indicatorLabel = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    color: KColors.textSecondary,
+  );
+
+  static const indicatorValue = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    color: KColors.textPrimary,
+  );
+}
+
+/// ---------------- Effects ----------------
+class KEffects {
+  // Glass / Blur
+  static const navGlassBlurSigma = 20.0;
+  static const tokenCardBlurSigma = 14.0;
+
+  // Opacity
+  static const navGlassOpacity = 0.2;
+  static const tokenCardBackgroundOpacity = 0.48;
+
+  // Other FX
+  static const activeTabHighlightOpacity = 0.3;
 }
 
 /// ---------------- Shadows ----------------
@@ -162,5 +186,3 @@ class KIcons {
   static const navHome = CupertinoIcons.graph_circle;
   static const navAlert = CupertinoIcons.bell;
 }
-
-//test
