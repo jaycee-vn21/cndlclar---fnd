@@ -2,71 +2,158 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/models/indicator.dart';
+import 'package:cndlclar/services/socket_manager.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class TokensProvider with ChangeNotifier {
+  late io.Socket _socket;
   List<Token> _tokens = [];
 
-  // Stores sparkline data per token
-  Map<String, List<double>> tokenSparklines = {};
+  // Stores sparkline per token and interval for quick updates
+  Map<String, Map<String, List<double>>> tokenSparklines = {};
 
   final Random _random = Random();
 
+  // Connection flag
+  bool isConnected = false;
+
   TokensProvider() {
-    // Initialize with dummy data for visual testing
+    // Initialize dummy tokens for UI preview before real backend
     _initializeDummyTokens();
   }
 
-  List<Token> getTokens() => _tokens;
+  List<Token> get tokens => _tokens;
 
   // --------------------------
   // --- DUMMY DATA METHODS ---
   // --------------------------
-  // Only needed for testing / UI preview before real backend
   void _initializeDummyTokens() {
     _tokens = [
-      Token(
-        name: "BTC",
-        price: 30000,
-        change1d: 1.2,
-        changeSelectedInterval: 0.5,
-        volume: 45000000000,
-        marketCap: 550000000000,
-        indicators: _generateTrendIndicators(30000, bullish: true),
-      ),
-      Token(
-        name: "ETH",
-        price: 2000,
-        change1d: -0.8,
-        changeSelectedInterval: 0.3,
-        volume: 20000000000,
-        marketCap: 240000000000,
-        indicators: _generateTrendIndicators(2000, bullish: false),
-      ),
-      Token(
-        name: "SOL",
-        price: 35,
-        change1d: 2.1,
-        changeSelectedInterval: 1.0,
-        volume: 5000000000,
-        marketCap: 12000000000,
-        indicators: _generateTrendIndicators(35, bullish: true),
-      ),
+      _createDummyToken("BTC", 30000, 550000000000),
+      _createDummyToken("ETH", 2000, 240000000000),
+      _createDummyToken("SOL", 35, 12000000000),
     ];
-
-    // Initialize sparkline dummy data
-    for (final token in _tokens) {
-      tokenSparklines[token.name] = _generateTrendSparkline(token.price);
-    }
   }
 
-  // Generate smooth trend-like sparkline (dummy)
-  List<double> _generateTrendSparkline(
-    double basePrice, {
-    bool bullish = true,
-  }) {
+  Token _createDummyToken(String name, double price, double marketCap) {
+    const intervals = ["1m", "5m", "15m", "1h"];
+
+    final closePricePerInterval = <String, double>{};
+    final priceChangePercentPerInterval = <String, double>{};
+    final volumePerInterval = <String, double>{};
+    final intervalStartTimes = <String, DateTime>{};
+    final sparklineData = <String, List<double>>{};
+    final sparklineDataOriginal = <String, List<double>>{};
+
+    for (final interval in intervals) {
+      closePricePerInterval[interval] = price;
+      priceChangePercentPerInterval[interval] = 0;
+      volumePerInterval[interval] = 0;
+      intervalStartTimes[interval] = DateTime.now();
+
+      final dummySparkline = _generateTrendSparkline(price);
+      sparklineData[interval] = List<double>.from(dummySparkline);
+      sparklineDataOriginal[interval] = List<double>.from(dummySparkline);
+    }
+
+    final indicators = _generateDummyIndicators(price);
+
+    tokenSparklines[name] = sparklineData;
+
+    return Token(
+      name: name,
+      marketCap: marketCap,
+      indicators: indicators,
+      closePricePerInterval: closePricePerInterval,
+      priceChangePercentPerInterval: priceChangePercentPerInterval,
+      volumePerInterval: volumePerInterval,
+      intervalStartTimes: intervalStartTimes,
+      sparklineData: sparklineData,
+      sparklineDataOriginal: sparklineDataOriginal,
+    );
+  }
+
+  // --------------------------
+  // --- SOCKET / BACKEND DATA ---
+  // --------------------------
+  void connectToBackend(String socketUrl) {
+    _socket = SocketManager(socketUrl).connectToSocket();
+
+    _socket.on('klinesCombined', (backendTokensData) {
+      final List<Token> updatedTokens = [];
+
+      for (final tokenMap in backendTokensData) {
+        final token = Token.fromMap(tokenMap);
+
+        // If token already exists, update sparkline instead of replacing
+        final existing = _tokens.firstWhere(
+          (t) => t.name == token.name,
+          orElse: () => token,
+        );
+
+        // Update sparkline trend per interval
+        token.sparklineData.forEach((interval, list) {
+          final newPrice = token.closePrice(interval);
+
+          if (existing.sparklineData[interval] != null &&
+              existing.sparklineData[interval]!.isNotEmpty) {
+            // Rolling update: shift left, append new price
+            final oldData = existing.sparklineData[interval]!;
+            final newData = [...oldData.skip(1), newPrice];
+            token.sparklineData[interval] = newData;
+            token.sparklineDataOriginal[interval] = newData;
+          } else {
+            // Initialize with dummy if empty
+            final dummy = _generateTrendSparkline(newPrice);
+            token.sparklineData[interval] = List<double>.from(dummy);
+            token.sparklineDataOriginal[interval] = List<double>.from(dummy);
+          }
+        });
+
+        // Preserve dummy indicators if backend doesn’t provide
+        if (token.indicators.isEmpty) {
+          token.indicators = _generateDummyIndicators(token.closePrice("1m"));
+        }
+
+        tokenSparklines[token.name] = token.sparklineData;
+        updatedTokens.add(token);
+      }
+
+      _tokens = updatedTokens;
+      isConnected = true;
+      notifyListeners();
+    });
+  }
+
+  // --------------------------
+  // --- UPDATE DUMMY DATA FOR LIVE PREVIEW ---
+  // --------------------------
+  void updateDummyData() {
+    for (final token in _tokens) {
+      token.sparklineData.forEach((interval, data) {
+        double last = data.last;
+        final trendFactor = 0.002;
+        final volatility =
+            (_random.nextDouble() - 0.5) * token.closePrice(interval) * 0.01;
+        final next = last * (1 + trendFactor) + volatility;
+
+        final newData = [...data.skip(1), next];
+        token.sparklineData[interval] = newData;
+      });
+
+      token.indicators = _generateDummyIndicators(token.closePrice("1m"));
+    }
+
+    notifyListeners();
+  }
+
+  // --------------------------
+  // --- PRIVATE HELPERS FOR DUMMY SPARKLINE AND INDICATORS---
+  // --------------------------
+  List<double> _generateTrendSparkline(double basePrice, {int length = 20}) {
     double last = basePrice;
-    final trendFactor = bullish ? 0.002 : -0.002;
-    return List.generate(20, (index) {
+    const trendFactor = 0.002;
+    return List.generate(length, (index) {
       final volatility = (_random.nextDouble() - 0.5) * basePrice * 0.01;
       final next = last * (1 + trendFactor) + volatility;
       last = next;
@@ -74,122 +161,38 @@ class TokensProvider with ChangeNotifier {
     });
   }
 
-  // Generate trend-based dummy indicators
-  List<Indicator> _generateTrendIndicators(
-    double price, {
-    bool bullish = true,
-  }) {
-    final List<Indicator> indicators = [];
-
-    // Example: multiple EMA indicators
-    indicators.add(
+  List<Indicator> _generateDummyIndicators(double price) {
+    return [
       Indicator.fromKey(
         key: "ema",
         rawValue:
             "${(price / 1000).toStringAsFixed(1)}/${(price / 1050).toStringAsFixed(1)}",
-        bullish: bullish,
+        bullish: _random.nextBool(),
         label: "EMA 9/21",
       ),
-    );
-    indicators.add(
       Indicator.fromKey(
         key: "ema",
         rawValue:
             "${(price / 1100).toStringAsFixed(1)}/${(price / 1150).toStringAsFixed(1)}",
-        bullish: bullish,
+        bullish: _random.nextBool(),
         label: "EMA 21/50",
       ),
-    );
-
-    // Other indicators
-    indicators.add(
       Indicator.fromKey(
         key: "rsi",
-        rawValue: bullish ? 50 + _random.nextInt(30) : 20 + _random.nextInt(30),
-        bullish: bullish,
+        rawValue: (_random.nextInt(100)).toString(),
+        bullish: _random.nextBool(),
       ),
-    );
-
-    indicators.add(
       Indicator.fromKey(
         key: "macd",
-        rawValue:
-            (price * 0.0001 * (_random.nextDouble() + (bullish ? 0.5 : 0)))
-                .toStringAsFixed(2),
-        bullish: bullish,
+        rawValue: (price * 0.0001 * (_random.nextDouble() + 0.5))
+            .toStringAsFixed(2),
+        bullish: _random.nextBool(),
       ),
-    );
-
-    indicators.add(
       Indicator.fromKey(
         key: "stoch",
-        rawValue: bullish ? 50 + _random.nextInt(50) : _random.nextInt(50),
-        bullish: bullish,
+        rawValue: (_random.nextInt(100)).toString(),
+        bullish: _random.nextBool(),
       ),
-    );
-
-    // -----------------------------
-    // NOTE: All above is dummy/testing data.
-    // For real backend:
-    // - Remove this method completely
-    // - Use Indicator.fromMap to parse indicators from backend
-    // -----------------------------
-
-    return indicators;
-  }
-
-  // Update dummy data periodically (for live preview in UI)
-  void updateDummyData() {
-    final updatedTokens = <Token>[];
-
-    for (final token in _tokens) {
-      final bullish = _random.nextBool();
-
-      // Update sparkline
-      final data = tokenSparklines[token.name]!;
-      final last = data.last;
-      final nextPoint =
-          last * (1 + (bullish ? 0.002 : -0.002)) +
-          (_random.nextDouble() - 0.5) * token.price * 0.01;
-      tokenSparklines[token.name] = [...data.skip(1), nextPoint];
-
-      // Recreate token with updated dummy indicators
-      updatedTokens.add(
-        Token(
-          name: token.name,
-          price: token.price,
-          change1d: token.change1d,
-          changeSelectedInterval: token.changeSelectedInterval,
-          volume: token.volume,
-          marketCap: token.marketCap,
-          indicators: _generateTrendIndicators(token.price, bullish: bullish),
-        ),
-      );
-    }
-
-    _tokens = updatedTokens;
-    notifyListeners();
-  }
-
-  // -----------------------------
-  // --- REAL BACKEND METHODS ---
-  // -----------------------------
-  void updateFromBackend(List<Map<String, dynamic>> backendTokens) {
-    _tokens = backendTokens.map((e) => Token.fromMap(e)).toList();
-
-    // Initialize sparkline for new tokens if missing
-    for (final token in _tokens) {
-      tokenSparklines[token.name] ??= _generateTrendSparkline(
-        token.price,
-      ); // optional dummy sparkline
-    }
-
-    // -----------------------------
-    // NOTE: When real backend exists:
-    // - Do NOT call _generateTrendIndicators
-    // - Use token.indicators directly from backend
-    // -----------------------------
-
-    notifyListeners();
+    ];
   }
 }

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cndlclar/models/indicator.dart';
+import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:cndlclar/widgets/indicator_row_widget.dart';
 import 'package:cndlclar/widgets/sparkline_widget.dart';
 import 'package:cndlclar/utils/constants.dart';
@@ -68,6 +70,10 @@ class TokenCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selectedInterval = Provider.of<IntervalProvider>(
+      context,
+    ).selectedInterval;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(KSizes.tokenCardBorderRadius),
       child: BackdropFilter(
@@ -94,7 +100,7 @@ class TokenCardWidget extends StatelessWidget {
                 children: [
                   Text(tokenName, style: KTextStyles.tokenName),
                   Text(
-                    "\$${currentPrice.toStringAsFixed(2)}",
+                    "\$${currentPrice.toStringAsFixed(5)}",
                     style: KTextStyles.tokenPrice,
                   ),
                 ],
@@ -112,24 +118,31 @@ class TokenCardWidget extends StatelessWidget {
               const SizedBox(height: KSpacing.sm),
 
               // --- Metrics ---
+              if (selectedInterval != '1d')
+                _buildMetricRow(
+                  "$selectedInterval Candle Change",
+                  "${selectedIntervalChange >= 0 ? '+' : ''}${selectedIntervalChange.toStringAsFixed(2)}%",
+                  valueColor: selectedIntervalChange >= 0
+                      ? KColors.accentPositive
+                      : KColors.accentNegative,
+                ),
               _buildMetricRow(
-                "Selected Interval",
-                "${selectedIntervalChange >= 0 ? '+' : ''}${selectedIntervalChange.toStringAsFixed(2)}%",
-                valueColor: selectedIntervalChange >= 0
-                    ? KColors.accentPositive
-                    : KColors.accentNegative,
-              ),
-              _buildMetricRow(
-                "24h Change",
+                "1d Candle Change",
                 "${dailyChange >= 0 ? '+' : ''}${dailyChange.toStringAsFixed(2)}%",
                 valueColor: dailyChange >= 0
                     ? KColors.accentPositive
                     : KColors.accentNegative,
               ),
-              if (volume != null)
-                _buildMetricRow("Volume", _formatLargeNumber(volume!)),
               if (marketCap != null)
-                _buildMetricRow("Market Cap", _formatLargeNumber(marketCap!)),
+                _buildMetricRow(
+                  "Market Cap",
+                  '\$${_formatLargeNumber(marketCap!)}',
+                ),
+              if (volume != null)
+                _buildMetricRow(
+                  "$selectedInterval Candle VolumeUSDT",
+                  '\$${_formatLargeNumber(volume!)}',
+                ),
             ],
           ),
         ),

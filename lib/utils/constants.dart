@@ -19,6 +19,9 @@ class KColors {
   static const accentPositive = Color(0xFF00C49A);
   static const accentNegative = Color(0xFFFF6B6B);
   static const intervalUnselected = Colors.white12;
+
+  static const progressBackground = Color(0xFF2A2A2A);
+  static const progressForeground = Color(0xFF00A885);
 }
 
 /// ---------------- Sizes ----------------
@@ -43,7 +46,7 @@ class KSizes {
   static const tokenMetricVerticalSpacing = 6.0;
   static const tokenMetricHorizontalSpacing = 10.0;
 
-  static const tokenMetricMinWidth = 72.0;
+  static const tokenMetricMinWidth = 80.0;
   static const tokenMetricsAreaFraction = 0.44;
 
   static const tokenSparklineHeight = 40.0;
@@ -58,6 +61,12 @@ class KSizes {
   static const intervalButtonVerticalPadding = 8.0;
   static const intervalButtonBorderRadius = 12.0;
   static const intervalButtonSpacing = 6.0;
+
+  // IntervalCountdown
+  static const countdownProgressHeight = 6.0;
+  static const countdownProgressBorderRadius = 3.0;
+  static const countdownGlowWidth = 12.0;
+  static const countdownGlowHeight = 6.0;
 
   // HomeScreen
   static const homeScreenVerticalSpacing = 12.0;
@@ -79,6 +88,7 @@ class KSpacing {
 class KDurations {
   static const navAnimation = Duration(milliseconds: 250);
   static const fastAnimation = Duration(milliseconds: 220);
+  static const dummySparklineAnimation = Duration(seconds: 1);
 }
 
 /// ---------------- TextStyles ----------------
@@ -124,6 +134,12 @@ class KTextStyles {
     fontWeight: FontWeight.bold,
   );
 
+  static const intervalCountdown = TextStyle(
+    color: KColors.textPrimary,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+  );
+
   static const indicatorLabel = TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w500,
@@ -151,6 +167,18 @@ class KEffects {
   static const activeTabHighlightOpacity = 0.3;
 }
 
+/// ---------------- Decorations ----------------
+class KDecorations {
+  static final countdownForeground = BoxDecoration(
+    color: KColors.progressForeground.withAlpha(230),
+    borderRadius: BorderRadius.circular(KSizes.countdownProgressBorderRadius),
+    boxShadow: [KShadows.countdown],
+  );
+  static final countdownBackground = BoxDecoration(
+    gradient: KGradients.countdown,
+  );
+}
+
 /// ---------------- Shadows ----------------
 class KShadows {
   static const nav = BoxShadow(
@@ -163,6 +191,12 @@ class KShadows {
     color: KColors.cardShadow,
     blurRadius: 12.0,
     offset: Offset(0, 6.0),
+  );
+
+  static final countdown = BoxShadow(
+    color: KColors.progressForeground.withAlpha(204),
+    blurRadius: 4,
+    spreadRadius: 1,
   );
 }
 
@@ -178,6 +212,17 @@ class KGradients {
     colors: [Color(0x22FFFFFF), Color(0x11FFFFFF)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
+  );
+
+  static final countdown = LinearGradient(
+    colors: [
+      KColors.progressForeground.withAlpha(230),
+      KColors.progressForeground,
+      KColors.progressForeground.withAlpha(179),
+    ],
+    stops: const [0.0, 0.5, 1.0],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
   );
 }
 
