@@ -9,6 +9,7 @@ class Token {
   final Map<String, double> closePricePerInterval;
   final Map<String, double> priceChangePercentPerInterval;
   final Map<String, double> volumePerInterval;
+  final Map<String, double> netVolumePerInterval;
   final Map<String, DateTime> intervalStartTimes;
 
   // Sparkline per interval (dummy generated externally)
@@ -22,6 +23,7 @@ class Token {
     required this.closePricePerInterval,
     required this.priceChangePercentPerInterval,
     required this.volumePerInterval,
+    required this.netVolumePerInterval,
     required this.intervalStartTimes,
     required this.sparklineData,
     required this.sparklineDataOriginal,
@@ -30,6 +32,7 @@ class Token {
   factory Token.fromMap(Map<String, dynamic> map) {
     final priceChangePercentPerInterval = <String, double>{};
     final volumePerInterval = <String, double>{};
+    final netVolumePerInterval = <String, double>{};
     final closePricePerInterval = <String, double>{};
     final intervalStartTimes = <String, DateTime>{};
 
@@ -44,6 +47,9 @@ class Token {
       } else if (key.startsWith('volumeInMoney')) {
         final interval = key.replaceFirst('volumeInMoney', '');
         volumePerInterval[interval] = (value ?? 0).toDouble();
+      } else if (key.startsWith('netVolumeInMoney')) {
+        final interval = key.replaceFirst('netVolumeInMoney', '');
+        netVolumePerInterval[interval] = (value ?? 0).toDouble();
       } else if (key.startsWith('closePrice')) {
         final interval = key.replaceFirst('closePrice', '');
         closePricePerInterval[interval] = (value ?? 0).toDouble();
@@ -69,6 +75,7 @@ class Token {
       closePricePerInterval: closePricePerInterval,
       priceChangePercentPerInterval: priceChangePercentPerInterval,
       volumePerInterval: volumePerInterval,
+      netVolumePerInterval: netVolumePerInterval,
       intervalStartTimes: intervalStartTimes,
       sparklineData: sparklineData,
       sparklineDataOriginal: sparklineDataOriginal,
@@ -82,6 +89,7 @@ class Token {
   double priceChange(String interval) =>
       priceChangePercentPerInterval[interval] ?? 0;
   double volume(String interval) => volumePerInterval[interval] ?? 0;
+  double netVolume(String interval) => netVolumePerInterval[interval] ?? 0;
   DateTime? startTime(String interval) => intervalStartTimes[interval];
   List<double> sparkline(String interval) =>
       sparklineData[interval] ?? <double>[];

@@ -104,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               dailyChange: token.priceChange('1d'),
                               volume: token.volume(selectedInterval),
+                              netVolume: token.netVolume(selectedInterval),
                               marketCap: token.marketCap,
                               sparklineData: token.sparkline(selectedInterval),
                               indicators: token.indicators,

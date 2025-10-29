@@ -41,6 +41,7 @@ class TokensProvider with ChangeNotifier {
     final closePricePerInterval = <String, double>{};
     final priceChangePercentPerInterval = <String, double>{};
     final volumePerInterval = <String, double>{};
+    final netVolumePerInterval = <String, double>{};
     final intervalStartTimes = <String, DateTime>{};
     final sparklineData = <String, List<double>>{};
     final sparklineDataOriginal = <String, List<double>>{};
@@ -49,6 +50,7 @@ class TokensProvider with ChangeNotifier {
       closePricePerInterval[interval] = price;
       priceChangePercentPerInterval[interval] = 0;
       volumePerInterval[interval] = 0;
+      netVolumePerInterval[interval] = 0;
       intervalStartTimes[interval] = DateTime.now();
 
       final dummySparkline = _generateTrendSparkline(price);
@@ -67,6 +69,7 @@ class TokensProvider with ChangeNotifier {
       closePricePerInterval: closePricePerInterval,
       priceChangePercentPerInterval: priceChangePercentPerInterval,
       volumePerInterval: volumePerInterval,
+      netVolumePerInterval: netVolumePerInterval,
       intervalStartTimes: intervalStartTimes,
       sparklineData: sparklineData,
       sparklineDataOriginal: sparklineDataOriginal,

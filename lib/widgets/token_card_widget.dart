@@ -13,6 +13,7 @@ class TokenCardWidget extends StatelessWidget {
   final double selectedIntervalChange;
   final double dailyChange;
   final double? volume;
+  final double? netVolume;
   final double? marketCap;
 
   final List<double> sparklineData;
@@ -25,6 +26,7 @@ class TokenCardWidget extends StatelessWidget {
     required this.selectedIntervalChange,
     required this.dailyChange,
     this.volume,
+    this.netVolume,
     this.marketCap,
     required this.sparklineData,
     required this.indicators,
@@ -133,15 +135,20 @@ class TokenCardWidget extends StatelessWidget {
                     ? KColors.accentPositive
                     : KColors.accentNegative,
               ),
-              if (marketCap != null)
-                _buildMetricRow(
-                  "Market Cap",
-                  '\$${_formatLargeNumber(marketCap!)}',
-                ),
+              // if (marketCap != null)
+              //   _buildMetricRow(
+              //     "Market Cap",
+              //     '\$${_formatLargeNumber(marketCap!)}',
+              //   ),
               if (volume != null)
                 _buildMetricRow(
                   "$selectedInterval Candle VolumeUSDT",
                   '\$${_formatLargeNumber(volume!)}',
+                ),
+              if (netVolume != null)
+                _buildMetricRow(
+                  "$selectedInterval Candle NetVolumeUSDT",
+                  '\$${_formatLargeNumber(netVolume!)}',
                 ),
             ],
           ),
