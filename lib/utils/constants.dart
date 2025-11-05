@@ -22,6 +22,18 @@ class KColors {
 
   static const progressBackground = Color(0xFF2A2A2A);
   static const progressForeground = Color(0xFF00A885);
+
+  static const tradingBuy = accentPositive;
+  static const tradingQuickBuy = activeIcon;
+  static const tradingSell = accentNegative;
+
+  static const tradingButtonText = textPrimary;
+  static const tradingButtonBackground = cardBackground;
+  static const tradingButtonShadow = Color(0x6600C49A); // soft greenish glow
+  static const tradingButtonPressedOverlay = Color(0x33FFFFFF);
+
+  static const tradeSuccessfulSnackbar = activeIcon;
+  static const tradeFailedSnackbar = accentNegative;
 }
 
 /// ---------------- Sizes ----------------
@@ -72,6 +84,14 @@ class KSizes {
   static const homeScreenVerticalSpacing = 12.0;
   static const listViewHorizontalPadding = 16.0;
   static const listViewBottomPadding = 12.0;
+
+  // Trading Buttons
+  static const tradingButtonHeight = 38.0;
+  static const tradingButtonMinWidth = 90.0;
+  static const tradingButtonBorderRadius = 14.0;
+  static const tradingButtonHorizontalPadding = 10.0;
+  static const tradingButtonVerticalPadding = 8.0;
+  static const tradingButtonSpacing = 8.0;
 }
 
 /// ---------------- Spacing ----------------
@@ -89,6 +109,8 @@ class KDurations {
   static const navAnimation = Duration(milliseconds: 250);
   static const fastAnimation = Duration(milliseconds: 220);
   static const dummySparklineAnimation = Duration(seconds: 1);
+  static const tradingPressAnimation = Duration(milliseconds: 150);
+  static const tradingGlowAnimation = Duration(milliseconds: 600);
 }
 
 /// ---------------- TextStyles ----------------
@@ -151,6 +173,13 @@ class KTextStyles {
     fontWeight: FontWeight.w600,
     color: KColors.textPrimary,
   );
+
+  static const tradingButtonLabel = TextStyle(
+    color: KColors.tradingButtonText,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.3,
+  );
 }
 
 /// ---------------- Effects ----------------
@@ -198,6 +227,12 @@ class KShadows {
     blurRadius: 4,
     spreadRadius: 1,
   );
+  static const tradingButton = BoxShadow(
+    color: KColors.tradingButtonShadow,
+    blurRadius: 10,
+    spreadRadius: 1,
+    offset: Offset(0, 3),
+  );
 }
 
 /// ---------------- Gradients ----------------
@@ -223,6 +258,33 @@ class KGradients {
     stops: const [0.0, 0.5, 1.0],
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
+  );
+
+  static final tradingBuy = LinearGradient(
+    colors: [
+      KColors.tradingBuy.withOpacity(0.9),
+      KColors.tradingBuy.withOpacity(0.6),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static final tradingQuickBuy = LinearGradient(
+    colors: [
+      KColors.tradingQuickBuy.withOpacity(0.9),
+      KColors.tradingQuickBuy.withOpacity(0.6),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static final tradingSell = LinearGradient(
+    colors: [
+      KColors.tradingSell.withOpacity(0.9),
+      KColors.tradingSell.withOpacity(0.6),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
   );
 }
 

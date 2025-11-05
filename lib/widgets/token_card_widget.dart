@@ -5,6 +5,8 @@ import 'package:cndlclar/models/indicator.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:cndlclar/widgets/indicator_row_widget.dart';
 import 'package:cndlclar/widgets/sparkline_widget.dart';
+import 'package:cndlclar/widgets/trading_buttons_row_widget.dart';
+import 'package:cndlclar/utils/config.dart';
 import 'package:cndlclar/utils/constants.dart';
 
 class TokenCardWidget extends StatelessWidget {
@@ -19,6 +21,11 @@ class TokenCardWidget extends StatelessWidget {
   final List<double> sparklineData;
   final List<Indicator> indicators; // fully typed model
 
+  // trade button presses
+  final VoidCallback onBuyPressed;
+  final VoidCallback onQuickBuyPressed;
+  final VoidCallback onSellPressed;
+
   const TokenCardWidget({
     super.key,
     required this.tokenName,
@@ -30,6 +37,11 @@ class TokenCardWidget extends StatelessWidget {
     this.marketCap,
     required this.sparklineData,
     required this.indicators,
+
+    // trade button presses
+    required this.onBuyPressed,
+    required this.onQuickBuyPressed,
+    required this.onSellPressed,
   });
 
   // -----------------------------
@@ -76,6 +88,9 @@ class TokenCardWidget extends StatelessWidget {
       context,
     ).selectedInterval;
 
+    // Temporary dummy device token
+    const String deviceToken = 'abc123-xyz789-2025';
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(KSizes.tokenCardBorderRadius),
       child: BackdropFilter(
@@ -100,7 +115,10 @@ class TokenCardWidget extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(tokenName, style: KTextStyles.tokenName),
+                  Text(
+                    tokenName.replaceAll('USDT', '/USDT'),
+                    style: KTextStyles.tokenName,
+                  ),
                   Text(
                     "\$${currentPrice.toStringAsFixed(5)}",
                     style: KTextStyles.tokenPrice,
@@ -149,6 +167,13 @@ class TokenCardWidget extends StatelessWidget {
                 _buildMetricRow(
                   "$selectedInterval Candle NetVolumeUSDT",
                   '\$${_formatLargeNumber(netVolume!)}',
+                ),
+              if (deviceToken == AppConfig.deviceToken)
+                TradingButtonsRowWidget(
+                  tokenName: tokenName,
+                  onBuy: onBuyPressed,
+                  onQuickBuy: onQuickBuyPressed,
+                  onSell: onSellPressed,
                 ),
             ],
           ),

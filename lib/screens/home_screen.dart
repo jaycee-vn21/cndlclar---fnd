@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cndlclar/services/trade_service.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
+import 'package:cndlclar/providers/test_trade_action_provider.dart';
 import 'package:cndlclar/widgets/interval_selector_widget.dart';
 import 'package:cndlclar/widgets/interval_countdown_widget.dart';
 import 'package:cndlclar/widgets/token_card_widget.dart';
@@ -18,6 +20,52 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _timer;
+  final TradeService _tradeService = TradeService();
+
+  Future<void> _handleTrade({
+    required String action, // "buy" or "sell"
+    required String symbol,
+    int? requestedLeverage,
+    double? priceToBuy,
+    double? stopLossPercent,
+    double? takeProfitPercent,
+    double? baseAmount,
+  }) async {
+    final result = await _tradeService.executeTrade(
+      action: action,
+      symbol: symbol,
+      requestedLeverage: requestedLeverage,
+      priceToBuy: priceToBuy,
+      stopLossPercent: stopLossPercent,
+      takeProfitPercent: takeProfitPercent,
+      baseAmount: baseAmount,
+    );
+
+    if (result['success'] == true) {
+      final data = result['data'];
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${action.toUpperCase()} Successful ✅: ${data['message'] ?? ''}',
+            style: TextStyle(color: KColors.textPrimary),
+          ),
+          backgroundColor: KColors.tradeSuccessfulSnackbar,
+        ),
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Trade Failed ❌: ${result['error']}',
+            style: TextStyle(color: KColors.textPrimary),
+          ),
+          backgroundColor: KColors.tradeFailedSnackbar,
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -25,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // connect to backend
     final tokensProvider = Provider.of<TokensProvider>(context, listen: false);
-    tokensProvider.connectToBackend(kBackendUrl);
+    tokensProvider.connectToBackend(AppConfig.baseUrl);
 
     // Keep sparklines alive (dummy updates)
     _timer = Timer.periodic(KDurations.dummySparklineAnimation, (_) {
@@ -108,6 +156,33 @@ class _HomeScreenState extends State<HomeScreen> {
                               marketCap: token.marketCap,
                               sparklineData: token.sparkline(selectedInterval),
                               indicators: token.indicators,
+                              // trade button presses
+                              onBuyPressed: () => {
+                                _handleTrade(
+                                  action: Provider.of<TestTradeActionProvider>(
+                                    context,
+                                    listen: false,
+                                  ).action,
+                                  symbol: 'BTCUSDT',
+                                  requestedLeverage: 3,
+                                  // baseAmount: 0.05,
+                                  // stopLossPercent: 2,
+                                  // takeProfitPercent: 5,
+                                ),
+                                Provider.of<TestTradeActionProvider>(
+                                  context,
+                                  listen: false,
+                                ).updateAction(),
+                              },
+                              onQuickBuyPressed: () => _handleTrade(
+                                action: 'buy',
+                                symbol: token.name,
+                                requestedLeverage: AppConfig.requestedLaverage,
+                              ),
+                              onSellPressed: () => _handleTrade(
+                                action: 'sell',
+                                symbol: token.name,
+                              ),
                             ),
                           );
                         },
