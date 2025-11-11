@@ -4,7 +4,6 @@ import 'package:cndlclar/services/trade_service.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
-import 'package:cndlclar/providers/test_trade_action_provider.dart';
 import 'package:cndlclar/widgets/interval_selector_widget.dart';
 import 'package:cndlclar/widgets/interval_countdown_widget.dart';
 import 'package:cndlclar/widgets/token_card_widget.dart';
@@ -159,20 +158,13 @@ class _HomeScreenState extends State<HomeScreen> {
                               // trade button presses
                               onBuyPressed: () => {
                                 _handleTrade(
-                                  action: Provider.of<TestTradeActionProvider>(
-                                    context,
-                                    listen: false,
-                                  ).action,
-                                  symbol: 'BTCUSDT',
-                                  requestedLeverage: 3,
-                                  // baseAmount: 0.05,
-                                  // stopLossPercent: 2,
-                                  // takeProfitPercent: 5,
+                                  action: 'buy',
+                                  symbol: token.name,
+                                  requestedLeverage:
+                                      AppConfig.requestedLaverage,
+                                  stopLossPercent: 1.5,
+                                  takeProfitPercent: 2,
                                 ),
-                                Provider.of<TestTradeActionProvider>(
-                                  context,
-                                  listen: false,
-                                ).updateAction(),
                               },
                               onQuickBuyPressed: () => _handleTrade(
                                 action: 'buy',

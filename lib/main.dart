@@ -1,6 +1,5 @@
 import 'package:cndlclar/providers/current_screen_index_provider.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
-import 'package:cndlclar/providers/test_trade_action_provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
 import 'package:cndlclar/screens/nav_screen.dart';
 import 'package:flutter/material.dart';
@@ -22,7 +21,6 @@ class CndlClarApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (context) => TokensProvider()),
         ChangeNotifierProvider(create: (context) => IntervalProvider()),
-        ChangeNotifierProvider(create: (context) => TestTradeActionProvider()),
       ],
       child: MaterialApp(
         theme: ThemeData.dark(),

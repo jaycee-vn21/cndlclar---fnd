@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/models/indicator.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
-import 'package:cndlclar/widgets/indicator_row_widget.dart';
+// import 'package:cndlclar/widgets/indicator_row_widget.dart';
 import 'package:cndlclar/widgets/sparkline_widget.dart';
 import 'package:cndlclar/widgets/trading_buttons_row_widget.dart';
 import 'package:cndlclar/utils/config.dart';
@@ -128,7 +128,7 @@ class TokenCardWidget extends StatelessWidget {
               const SizedBox(height: KSpacing.sm),
 
               // --- Indicators (uses Indicator model directly) ---
-              IndicatorRowWidget(indicators: indicators),
+              // IndicatorRowWidget(indicators: indicators),
 
               // --- Sparkline chart ---
               Padding(
@@ -158,16 +158,16 @@ class TokenCardWidget extends StatelessWidget {
               //     "Market Cap",
               //     '\$${_formatLargeNumber(marketCap!)}',
               //   ),
-              if (volume != null)
-                _buildMetricRow(
-                  "$selectedInterval Candle VolumeUSDT",
-                  '\$${_formatLargeNumber(volume!)}',
-                ),
-              if (netVolume != null)
-                _buildMetricRow(
-                  "$selectedInterval Candle NetVolumeUSDT",
-                  '\$${_formatLargeNumber(netVolume!)}',
-                ),
+              // if (volume != null)
+              //   _buildMetricRow(
+              //     "$selectedInterval Candle VolumeUSDT",
+              //     '\$${_formatLargeNumber(volume!)}',
+              //   ),
+              // if (netVolume != null)
+              //   _buildMetricRow(
+              //     "$selectedInterval Candle NetVolumeUSDT",
+              //     '\$${_formatLargeNumber(netVolume!)}',
+              //   ),
               if (deviceToken == AppConfig.deviceToken)
                 TradingButtonsRowWidget(
                   tokenName: tokenName,

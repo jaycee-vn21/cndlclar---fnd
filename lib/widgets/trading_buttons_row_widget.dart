@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:cndlclar/providers/test_trade_action_provider.dart';
 import 'package:cndlclar/utils/constants.dart';
 
 class TradingButtonsRowWidget extends StatefulWidget {
@@ -32,7 +30,7 @@ class _TradingButtonsRowWidgetState extends State<TradingButtonsRowWidget>
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _AnimatedTradeButton(
-            label: Provider.of<TestTradeActionProvider>(context).action,
+            label: "Buy + OCO",
             gradient: KGradients.tradingBuy,
             onPressed: widget.onBuy,
           ),
