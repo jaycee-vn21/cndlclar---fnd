@@ -47,13 +47,13 @@ class TokenCardWidget extends StatelessWidget {
   // -----------------------------
   // Format large numbers like 1.2M, 5B, etc.
   // -----------------------------
-  String _formatLargeNumber(double value) {
-    if (value >= 1e12) return "${(value / 1e12).toStringAsFixed(2)}T";
-    if (value >= 1e9) return "${(value / 1e9).toStringAsFixed(2)}B";
-    if (value >= 1e6) return "${(value / 1e6).toStringAsFixed(2)}M";
-    if (value >= 1e3) return "${(value / 1e3).toStringAsFixed(1)}K";
-    return value.toStringAsFixed(0);
-  }
+  // String _formatLargeNumber(double value) {
+  //   if (value >= 1e12) return "${(value / 1e12).toStringAsFixed(2)}T";
+  //   if (value >= 1e9) return "${(value / 1e9).toStringAsFixed(2)}B";
+  //   if (value >= 1e6) return "${(value / 1e6).toStringAsFixed(2)}M";
+  //   if (value >= 1e3) return "${(value / 1e3).toStringAsFixed(1)}K";
+  //   return value.toStringAsFixed(0);
+  // }
 
   // -----------------------------
   // Build a single metric row (Selected Interval, 24h change, etc.)
