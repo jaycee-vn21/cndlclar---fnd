@@ -4,6 +4,7 @@ class Token {
   final String name;
   final double marketCap;
   List<Indicator> indicators;
+  final double tickerPriceChange1h;
 
   // Interval-based numeric properties
   final Map<String, double> closePricePerInterval;
@@ -20,6 +21,7 @@ class Token {
     required this.name,
     required this.marketCap,
     required this.indicators,
+    required this.tickerPriceChange1h,
     required this.closePricePerInterval,
     required this.priceChangePercentPerInterval,
     required this.volumePerInterval,
@@ -72,6 +74,7 @@ class Token {
       name: map['tokenName'] ?? '',
       marketCap: (map['marketCap'] ?? 0).toDouble(),
       indicators: [], // will be set in provider
+      tickerPriceChange1h: (map['tickerPriceChange1h'] ?? 0).toDouble(),
       closePricePerInterval: closePricePerInterval,
       priceChangePercentPerInterval: priceChangePercentPerInterval,
       volumePerInterval: volumePerInterval,

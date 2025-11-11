@@ -29,13 +29,18 @@ class TokensProvider with ChangeNotifier {
   // --------------------------
   void _initializeDummyTokens() {
     _tokens = [
-      _createDummyToken("BTC", 30000, 550000000000),
-      _createDummyToken("ETH", 2000, 240000000000),
-      _createDummyToken("SOL", 35, 12000000000),
+      _createDummyToken("BTC", 30000, 550000000000, 1),
+      _createDummyToken("ETH", 2000, 240000000000, 2),
+      _createDummyToken("SOL", 35, 12000000000, 3),
     ];
   }
 
-  Token _createDummyToken(String name, double price, double marketCap) {
+  Token _createDummyToken(
+    String name,
+    double price,
+    double marketCap,
+    double tickerPriceChange1h,
+  ) {
     const intervals = ["1m", "5m", "15m", "1h"];
 
     final closePricePerInterval = <String, double>{};
@@ -66,6 +71,7 @@ class TokensProvider with ChangeNotifier {
       name: name,
       marketCap: marketCap,
       indicators: indicators,
+      tickerPriceChange1h: tickerPriceChange1h,
       closePricePerInterval: closePricePerInterval,
       priceChangePercentPerInterval: priceChangePercentPerInterval,
       volumePerInterval: volumePerInterval,

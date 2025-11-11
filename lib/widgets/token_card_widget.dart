@@ -14,6 +14,7 @@ class TokenCardWidget extends StatelessWidget {
   final double currentPrice;
   final double selectedIntervalChange;
   final double dailyChange;
+  final double? tickerPriceChange1h;
   final double? volume;
   final double? netVolume;
   final double? marketCap;
@@ -32,6 +33,8 @@ class TokenCardWidget extends StatelessWidget {
     required this.currentPrice,
     required this.selectedIntervalChange,
     required this.dailyChange,
+
+    this.tickerPriceChange1h,
     this.volume,
     this.netVolume,
     this.marketCap,
@@ -143,6 +146,14 @@ class TokenCardWidget extends StatelessWidget {
                   "$selectedInterval Candle Change",
                   "${selectedIntervalChange >= 0 ? '+' : ''}${selectedIntervalChange.toStringAsFixed(2)}%",
                   valueColor: selectedIntervalChange >= 0
+                      ? KColors.accentPositive
+                      : KColors.accentNegative,
+                ),
+              if (tickerPriceChange1h != null)
+                _buildMetricRow(
+                  "Ticker 1h Change",
+                  "${tickerPriceChange1h! >= 0 ? '+' : ''}${tickerPriceChange1h!.toStringAsFixed(2)}%",
+                  valueColor: tickerPriceChange1h! >= 0
                       ? KColors.accentPositive
                       : KColors.accentNegative,
                 ),

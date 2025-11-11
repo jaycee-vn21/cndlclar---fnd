@@ -292,4 +292,5 @@ class KGradients {
 class KIcons {
   static const navHome = CupertinoIcons.graph_circle;
   static const navAlert = CupertinoIcons.bell;
+  static const setSortingField = CupertinoIcons.sort_down_circle;
 }

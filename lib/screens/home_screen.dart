@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cndlclar/services/trade_service.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
+import 'package:cndlclar/providers/sorting_field_provider.dart';
 import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/screens/individual_token_screen.dart';
 import 'package:cndlclar/widgets/token_list_view_section.dart';
@@ -119,6 +120,25 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         centerTitle: true,
         elevation: 0,
+        actions: [
+          //Set sorting
+          IconButton(
+            onPressed: () {
+              final sortingFieldProvider = Provider.of<SortingFieldProvider>(
+                context,
+                listen: false,
+              );
+              sortingFieldProvider.sortingField == 'priceChange'
+                  ? sortingFieldProvider.setSortingField('tickerPriceChange1h')
+                  : sortingFieldProvider.setSortingField('priceChange');
+            },
+            icon: const Icon(
+              KIcons.setSortingField,
+              size: KSizes.navIconSize,
+              color: KColors.textPrimary,
+            ),
+          ),
+        ],
       ),
       body: TokenListViewSection(
         showList: true,

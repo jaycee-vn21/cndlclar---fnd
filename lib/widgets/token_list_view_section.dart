@@ -1,3 +1,4 @@
+import 'package:cndlclar/providers/sorting_field_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/models/token.dart';
@@ -30,79 +31,112 @@ class TokenListViewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<TokensProvider, IntervalProvider>(
-      builder: (context, tokensProvider, intervalProvider, child) {
-        final selectedInterval = intervalProvider.selectedInterval;
+    return Consumer3<TokensProvider, IntervalProvider, SortingFieldProvider>(
+      builder:
+          (
+            context,
+            tokensProvider,
+            intervalProvider,
+            sortingFieldProvider,
+            child,
+          ) {
+            final selectedInterval = intervalProvider.selectedInterval;
+            final sortField = sortingFieldProvider.sortingField;
 
-        final tokens = showList
-            ? (List<Token>.from(tokensProvider.tokens)..sort(
-                (a, b) => b
-                    .priceChange(selectedInterval)
-                    .compareTo(a.priceChange(selectedInterval)),
-              ))
-            : [
-                tokensProvider.tokens.firstWhere(
-                  (t) => t.name == singleToken?.name,
-                  orElse: () => singleToken!,
-                ),
-              ];
+            final tokens = showList
+                ? (List<Token>.from(tokensProvider.tokens)..sort((a, b) {
+                    double aValue;
+                    double bValue;
 
-        return Column(
-          children: [
-            // Interval Selector
-            IntervalSelectorWidget(
-              intervals: const ['5m', '15m', '30m', '1h', '1d'],
-            ),
+                    // Determine sorting field dynamically
+                    switch (sortField) {
+                      case 'tickerPriceChange1h':
+                        aValue = a.tickerPriceChange1h;
+                        bValue = b.tickerPriceChange1h;
+                        break;
+                      case 'priceChange':
+                        aValue = a.priceChange(selectedInterval);
+                        bValue = b.priceChange(selectedInterval);
+                        break;
+                      default:
+                        aValue = a.priceChange(selectedInterval);
+                        bValue = b.priceChange(selectedInterval);
+                    }
 
-            // Interval Countdown
-            const IntervalCountdownWidget(),
-
-            const SizedBox(height: KSpacing.md),
-
-            // Tokens List or Single Token
-            Expanded(
-              child: tokensProvider.isConnected && tokens.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: KSizes.listViewHorizontalPadding,
-                        vertical: KSizes.listViewBottomPadding,
-                      ),
-                      itemCount: tokens.length,
-                      itemBuilder: (context, index) {
-                        final token = tokens[index];
-                        return InkWell(
-                          onTap: onTokenTap != null
-                              ? () => onTokenTap!(token)
-                              : null,
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: KSpacing.md),
-                            child: TokenCardWidget(
-                              tokenName: token.name,
-                              currentPrice: token.closePrice(selectedInterval),
-                              selectedIntervalChange: token.priceChange(
-                                selectedInterval,
-                              ),
-                              dailyChange: token.priceChange('1d'),
-                              volume: token.volume(selectedInterval),
-                              netVolume: token.netVolume(selectedInterval),
-                              marketCap: token.marketCap,
-                              sparklineData: token.sparkline(selectedInterval),
-                              indicators: token.indicators,
-                              onBuyPressed: () => onBuyPressed?.call(token),
-                              onQuickBuyPressed: () =>
-                                  onQuickBuyPressed?.call(token),
-                              onSellPressed: () => onSellPressed?.call(token),
-                            ),
-                          ),
-                        );
-                      },
+                    return bValue.compareTo(aValue); // descending
+                  }))
+                : [
+                    tokensProvider.tokens.firstWhere(
+                      (t) => t.name == singleToken?.name,
+                      orElse: () => singleToken!,
                     ),
-            ),
-          ],
-        );
-      },
+                  ];
+
+            return Column(
+              children: [
+                // Interval Selector
+                IntervalSelectorWidget(
+                  intervals: const ['5m', '15m', '30m', '1h', '1d'],
+                ),
+
+                // Interval Countdown
+                const IntervalCountdownWidget(),
+
+                const SizedBox(height: KSpacing.md),
+
+                // Tokens List or Single Token
+                Expanded(
+                  child: tokensProvider.isConnected && tokens.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView.builder(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: KSizes.listViewHorizontalPadding,
+                            vertical: KSizes.listViewBottomPadding,
+                          ),
+                          itemCount: tokens.length,
+                          itemBuilder: (context, index) {
+                            final token = tokens[index];
+                            return InkWell(
+                              onTap: onTokenTap != null
+                                  ? () => onTokenTap!(token)
+                                  : null,
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: KSpacing.md,
+                                ),
+                                child: TokenCardWidget(
+                                  tokenName: token.name,
+                                  currentPrice: token.closePrice(
+                                    selectedInterval,
+                                  ),
+                                  selectedIntervalChange: token.priceChange(
+                                    selectedInterval,
+                                  ),
+                                  tickerPriceChange1h:
+                                      token.tickerPriceChange1h,
+                                  dailyChange: token.priceChange('1d'),
+                                  volume: token.volume(selectedInterval),
+                                  netVolume: token.netVolume(selectedInterval),
+                                  marketCap: token.marketCap,
+                                  sparklineData: token.sparkline(
+                                    selectedInterval,
+                                  ),
+                                  indicators: token.indicators,
+                                  onBuyPressed: () => onBuyPressed?.call(token),
+                                  onQuickBuyPressed: () =>
+                                      onQuickBuyPressed?.call(token),
+                                  onSellPressed: () =>
+                                      onSellPressed?.call(token),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
     );
   }
 }
