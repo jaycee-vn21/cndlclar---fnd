@@ -73,21 +73,6 @@ class _SparklinePainter extends CustomPainter {
     }
     path.lineTo(points.last.dx, points.last.dy);
 
-    // Gradient fill
-    final gradient = KGradients.sparkline(lineColor);
-
-    final fillPaint = Paint()
-      ..shader = gradient.createShader(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-      )
-      ..style = PaintingStyle.fill;
-
-    final fillPath = Path.from(path)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
   }
 
