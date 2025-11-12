@@ -96,13 +96,6 @@ class _HomeScreenState extends State<HomeScreen> {
     // connect to backend
     final tokensProvider = Provider.of<TokensProvider>(context, listen: false);
     tokensProvider.connectToBackend(AppConfig.baseUrl);
-
-    // Keep sparklines alive (dummy updates)
-    _timer = Timer.periodic(KDurations.dummySparklineAnimation, (_) {
-      if (tokensProvider.tokens.isEmpty) {
-        tokensProvider.updateDummyData();
-      }
-    });
   }
 
   @override

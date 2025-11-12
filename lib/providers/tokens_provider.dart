@@ -17,70 +17,7 @@ class TokensProvider with ChangeNotifier {
   // Connection flag
   bool isConnected = false;
 
-  TokensProvider() {
-    // Initialize dummy tokens for UI preview before real backend
-    _initializeDummyTokens();
-  }
-
   List<Token> get tokens => _tokens;
-
-  // --------------------------
-  // --- DUMMY DATA METHODS ---
-  // --------------------------
-  void _initializeDummyTokens() {
-    _tokens = [
-      _createDummyToken("BTC", 30000, 550000000000, 1),
-      _createDummyToken("ETH", 2000, 240000000000, 2),
-      _createDummyToken("SOL", 35, 12000000000, 3),
-    ];
-  }
-
-  Token _createDummyToken(
-    String name,
-    double price,
-    double marketCap,
-    double tickerPriceChange1h,
-  ) {
-    const intervals = ["1m", "5m", "15m", "1h"];
-
-    final closePricePerInterval = <String, double>{};
-    final priceChangePercentPerInterval = <String, double>{};
-    final volumePerInterval = <String, double>{};
-    final netVolumePerInterval = <String, double>{};
-    final intervalStartTimes = <String, DateTime>{};
-    final sparklineData = <String, List<double>>{};
-    final sparklineDataOriginal = <String, List<double>>{};
-
-    for (final interval in intervals) {
-      closePricePerInterval[interval] = price;
-      priceChangePercentPerInterval[interval] = 0;
-      volumePerInterval[interval] = 0;
-      netVolumePerInterval[interval] = 0;
-      intervalStartTimes[interval] = DateTime.now();
-
-      final dummySparkline = _generateTrendSparkline(price);
-      sparklineData[interval] = List<double>.from(dummySparkline);
-      sparklineDataOriginal[interval] = List<double>.from(dummySparkline);
-    }
-
-    final indicators = _generateDummyIndicators(price);
-
-    tokenSparklines[name] = sparklineData;
-
-    return Token(
-      name: name,
-      marketCap: marketCap,
-      indicators: indicators,
-      tickerPriceChange1h: tickerPriceChange1h,
-      closePricePerInterval: closePricePerInterval,
-      priceChangePercentPerInterval: priceChangePercentPerInterval,
-      volumePerInterval: volumePerInterval,
-      netVolumePerInterval: netVolumePerInterval,
-      intervalStartTimes: intervalStartTimes,
-      sparklineData: sparklineData,
-      sparklineDataOriginal: sparklineDataOriginal,
-    );
-  }
 
   // --------------------------
   // --- SOCKET / BACKEND DATA ---
@@ -132,28 +69,6 @@ class TokensProvider with ChangeNotifier {
       isConnected = true;
       notifyListeners();
     });
-  }
-
-  // --------------------------
-  // --- UPDATE DUMMY DATA FOR LIVE PREVIEW ---
-  // --------------------------
-  void updateDummyData() {
-    for (final token in _tokens) {
-      token.sparklineData.forEach((interval, data) {
-        double last = data.last;
-        final trendFactor = 0.002;
-        final volatility =
-            (_random.nextDouble() - 0.5) * token.closePrice(interval) * 0.01;
-        final next = last * (1 + trendFactor) + volatility;
-
-        final newData = [...data.skip(1), next];
-        token.sparklineData[interval] = newData;
-      });
-
-      token.indicators = _generateDummyIndicators(token.closePrice("1m"));
-    }
-
-    notifyListeners();
   }
 
   // --------------------------
