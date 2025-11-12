@@ -12,7 +12,6 @@ class SparklineWidget extends StatelessWidget {
       return SizedBox(height: KSizes.tokenSparklineHeight);
     }
 
-    // Line color based on last two points
     final Color lineColor = data.length < 2
         ? KColors.accentPositive
         : data.last >= data[data.length - 2]
@@ -48,27 +47,52 @@ class _SparklinePainter extends CustomPainter {
       ..color = lineColor
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
 
-    final path = Path();
     final minValue = data.reduce((a, b) => a < b ? a : b);
     final maxValue = data.reduce((a, b) => a > b ? a : b);
-    final range = maxValue - minValue == 0 ? 1 : maxValue - minValue;
+    final range = (maxValue - minValue).abs() < 0.0001
+        ? 0.0001
+        : (maxValue - minValue);
 
-    for (int i = 0; i < data.length; i++) {
-      final x = (i / (data.length - 1)) * size.width;
-      final y = size.height - ((data[i] - minValue) / range) * size.height;
+    final points = List.generate(
+      data.length,
+      (i) => Offset(
+        (i / (data.length - 1)) * size.width,
+        size.height - ((data[i] - minValue) / range) * size.height,
+      ),
+    );
 
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+
+    for (int i = 1; i < points.length - 2; i++) {
+      final xc = (points[i].dx + points[i + 1].dx) / 2;
+      final yc = (points[i].dy + points[i + 1].dy) / 2;
+      path.quadraticBezierTo(points[i].dx, points[i].dy, xc, yc);
     }
+    path.lineTo(points.last.dx, points.last.dy);
 
+    // Gradient fill
+    final gradient = KGradients.sparkline(lineColor);
+
+    final fillPaint = Paint()
+      ..shader = gradient.createShader(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+      )
+      ..style = PaintingStyle.fill;
+
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _SparklinePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _SparklinePainter oldDelegate) {
+    return oldDelegate.data != data || oldDelegate.lineColor != lineColor;
+  }
 }

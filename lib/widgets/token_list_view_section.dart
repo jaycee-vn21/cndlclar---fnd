@@ -1,13 +1,13 @@
-import 'package:cndlclar/providers/sorting_field_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
-import 'package:cndlclar/utils/constants.dart';
+import 'package:cndlclar/providers/sorting_field_provider.dart';
 import 'package:cndlclar/widgets/interval_selector_widget.dart';
 import 'package:cndlclar/widgets/interval_countdown_widget.dart';
 import 'package:cndlclar/widgets/token_card_widget.dart';
+import 'package:cndlclar/utils/constants.dart';
 
 class TokenListViewSection extends StatelessWidget {
   final bool showList;

@@ -286,6 +286,14 @@ class KGradients {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
+
+  static LinearGradient sparkline(Color lineColor) {
+    return LinearGradient(
+      colors: [lineColor.withOpacity(0.3), lineColor.withOpacity(0.05)],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    );
+  }
 }
 
 /// ---------------- Icons ----------------
