@@ -5,9 +5,9 @@ import 'package:cndlclar/utils/constants.dart';
 /// Displays a horizontal row of indicators for a token.
 /// Fully typed: uses [Indicator] model directly.
 class IndicatorRowWidget extends StatelessWidget {
-  final List<Indicator> indicators;
+  final List<Indicator>? indicators;
 
-  const IndicatorRowWidget({super.key, required this.indicators});
+  const IndicatorRowWidget({super.key, this.indicators});
 
   /// Builds a single indicator widget: label, value, icon
   Widget _buildIndicator(Indicator indicator) {
@@ -37,14 +37,16 @@ class IndicatorRowWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (indicators.isEmpty) return const SizedBox.shrink();
+    if (indicators == null || indicators!.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: KSpacing.xs),
       child: Wrap(
         spacing: KSpacing.md,
         runSpacing: KSpacing.xs,
-        children: indicators.map(_buildIndicator).toList(),
+        children: indicators!.map(_buildIndicator).toList(),
       ),
     );
   }

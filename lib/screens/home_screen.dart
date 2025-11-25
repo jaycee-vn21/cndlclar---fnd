@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:cndlclar/services/trade_service.dart';
 import 'package:provider/provider.dart';
+import 'package:cndlclar/models/token.dart';
+import 'package:cndlclar/models/kline_data.dart';
+import 'package:cndlclar/services/trade_service.dart';
+import 'package:cndlclar/services/kline_service.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
 import 'package:cndlclar/providers/sorting_field_provider.dart';
-import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/screens/individual_token_screen.dart';
 import 'package:cndlclar/widgets/token_list_view_section.dart';
 import 'package:cndlclar/utils/constants.dart';
@@ -20,6 +23,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _timer;
   final TradeService _tradeService = TradeService();
+  final KlineService _klineService = KlineService(baseUrl: AppConfig.baseUrl);
+
+  //Hhistorical candles per symbol and interval
+  final Map<String, Map<String, List<KlineData>>> _historicalKlines = {};
 
   Future<void> _handleTrade({
     required String action, // "buy" or "sell"
@@ -89,6 +96,27 @@ class _HomeScreenState extends State<HomeScreen> {
     _handleTrade(action: 'sell', symbol: token.name);
   }
 
+  Future<void> _fetchAllHistoricalKlines(
+    List<Token> tokens,
+    String selectedInterval,
+  ) async {
+    for (final Token token in tokens) {
+      _historicalKlines[token.name] ??= {};
+
+      final candles = await _klineService.fetchHistoricalKlines(
+        symbol: token.name,
+        interval: selectedInterval,
+        limit: 50,
+      );
+
+      _historicalKlines[token.name]![selectedInterval] = candles;
+    }
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -96,6 +124,20 @@ class _HomeScreenState extends State<HomeScreen> {
     // connect to backend
     final tokensProvider = Provider.of<TokensProvider>(context, listen: false);
     tokensProvider.connectToBackend(AppConfig.baseUrl);
+
+    // 2️⃣ Listen for tokens updates
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tokensProvider.addListener(() {
+        if (tokensProvider.tokens.isNotEmpty) {
+          final interval = Provider.of<IntervalProvider>(
+            context,
+            listen: false,
+          ).selectedInterval;
+
+          _fetchAllHistoricalKlines(tokensProvider.tokens, interval);
+        }
+      });
+    });
   }
 
   @override
@@ -135,11 +177,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: TokenListViewSection(
         showList: true,
+        historicalKlines: _historicalKlines,
         onTokenTap: (token) {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => IndividualTokenScreen(
                 token: token,
+                historicalKlines: _historicalKlines,
                 onBuyPressed: () => _buyPressed(token),
                 onQuickBuyPressed: () => _quickBuyPressed(token),
                 onSellPressed: () => _sellPressed(token),

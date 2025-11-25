@@ -1,10 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cndlclar/models/kline_data.dart';
 import 'package:cndlclar/models/indicator.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
-// import 'package:cndlclar/widgets/indicator_row_widget.dart';
-import 'package:cndlclar/widgets/sparkline_widget.dart';
+import 'package:cndlclar/widgets/indicator_row_widget.dart';
+// import 'package:cndlclar/widgets/sparkline_widget.dart';
+import 'package:cndlclar/widgets/candlestick_chart_widget.dart';
 import 'package:cndlclar/widgets/trading_buttons_row_widget.dart';
 import 'package:cndlclar/utils/config.dart';
 import 'package:cndlclar/utils/constants.dart';
@@ -19,8 +21,9 @@ class TokenCardWidget extends StatelessWidget {
   final double? netVolume;
   final double? marketCap;
 
-  final List<double> sparklineData;
-  final List<Indicator> indicators; // fully typed model
+  final List<double>? sparklineData;
+  final List<Indicator>? indicators;
+  final Map<String, Map<String, List<KlineData>>>? historicalKlines;
 
   // trade button presses
   final VoidCallback onBuyPressed;
@@ -38,8 +41,9 @@ class TokenCardWidget extends StatelessWidget {
     this.volume,
     this.netVolume,
     this.marketCap,
-    required this.sparklineData,
-    required this.indicators,
+    this.sparklineData,
+    this.indicators,
+    this.historicalKlines,
 
     // trade button presses
     required this.onBuyPressed,
@@ -50,13 +54,13 @@ class TokenCardWidget extends StatelessWidget {
   // -----------------------------
   // Format large numbers like 1.2M, 5B, etc.
   // -----------------------------
-  // String _formatLargeNumber(double value) {
-  //   if (value >= 1e12) return "${(value / 1e12).toStringAsFixed(2)}T";
-  //   if (value >= 1e9) return "${(value / 1e9).toStringAsFixed(2)}B";
-  //   if (value >= 1e6) return "${(value / 1e6).toStringAsFixed(2)}M";
-  //   if (value >= 1e3) return "${(value / 1e3).toStringAsFixed(1)}K";
-  //   return value.toStringAsFixed(0);
-  // }
+  String _formatLargeNumber(double value) {
+    if (value >= 1e12) return "${(value / 1e12).toStringAsFixed(2)}T";
+    if (value >= 1e9) return "${(value / 1e9).toStringAsFixed(2)}B";
+    if (value >= 1e6) return "${(value / 1e6).toStringAsFixed(2)}M";
+    if (value >= 1e3) return "${(value / 1e3).toStringAsFixed(1)}K";
+    return value.toStringAsFixed(0);
+  }
 
   // -----------------------------
   // Build a single metric row (Selected Interval, 24h change, etc.)
@@ -130,14 +134,22 @@ class TokenCardWidget extends StatelessWidget {
               ),
               const SizedBox(height: KSpacing.sm),
 
-              // --- Indicators (uses Indicator model directly) ---
-              // IndicatorRowWidget(indicators: indicators),
+              // --- Indicators ---
+              IndicatorRowWidget(indicators: indicators),
 
-              // --- Sparkline chart ---
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: KSpacing.xs),
-                child: SparklineWidget(data: sparklineData),
-              ),
+              // --- Chart ---
+              if (historicalKlines?[tokenName]?[selectedInterval] != null &&
+                  historicalKlines!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: KSpacing.xs),
+                  child: SizedBox(
+                    height: 250, // small chart height for token card
+                    child: CandlestickChartWidget(
+                      candles:
+                          historicalKlines![tokenName]?[selectedInterval] ?? [],
+                    ),
+                  ),
+                ),
               const SizedBox(height: KSpacing.sm),
 
               // --- Metrics ---
@@ -164,21 +176,21 @@ class TokenCardWidget extends StatelessWidget {
                     ? KColors.accentPositive
                     : KColors.accentNegative,
               ),
-              // if (marketCap != null)
-              //   _buildMetricRow(
-              //     "Market Cap",
-              //     '\$${_formatLargeNumber(marketCap!)}',
-              //   ),
-              // if (volume != null)
-              //   _buildMetricRow(
-              //     "$selectedInterval Candle VolumeUSDT",
-              //     '\$${_formatLargeNumber(volume!)}',
-              //   ),
-              // if (netVolume != null)
-              //   _buildMetricRow(
-              //     "$selectedInterval Candle NetVolumeUSDT",
-              //     '\$${_formatLargeNumber(netVolume!)}',
-              //   ),
+              if (marketCap != null)
+                _buildMetricRow(
+                  "Market Cap",
+                  '\$${_formatLargeNumber(marketCap!)}',
+                ),
+              if (volume != null)
+                _buildMetricRow(
+                  "$selectedInterval Candle VolumeUSDT",
+                  '\$${_formatLargeNumber(volume!)}',
+                ),
+              if (netVolume != null)
+                _buildMetricRow(
+                  "$selectedInterval Candle NetVolumeUSDT",
+                  '\$${_formatLargeNumber(netVolume!)}',
+                ),
               if (deviceToken == AppConfig.deviceToken)
                 TradingButtonsRowWidget(
                   tokenName: tokenName,

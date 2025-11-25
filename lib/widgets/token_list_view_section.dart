@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/models/token.dart';
+import 'package:cndlclar/models/kline_data.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
 import 'package:cndlclar/providers/sorting_field_provider.dart';
@@ -12,6 +13,7 @@ import 'package:cndlclar/utils/constants.dart';
 class TokenListViewSection extends StatelessWidget {
   final bool showList;
   final Token? singleToken;
+  final Map<String, Map<String, List<KlineData>>>? historicalKlines;
   final Function(Token)? onTokenTap;
 
   // trade button handlers
@@ -23,6 +25,7 @@ class TokenListViewSection extends StatelessWidget {
     super.key,
     this.showList = true,
     this.singleToken,
+    this.historicalKlines,
     this.onTokenTap,
     this.onBuyPressed,
     this.onQuickBuyPressed,
@@ -116,13 +119,14 @@ class TokenListViewSection extends StatelessWidget {
                                   tickerPriceChange1h:
                                       token.tickerPriceChange1h,
                                   dailyChange: token.priceChange('1d'),
-                                  volume: token.volume(selectedInterval),
-                                  netVolume: token.netVolume(selectedInterval),
-                                  marketCap: token.marketCap,
-                                  sparklineData: token.sparkline(
-                                    selectedInterval,
-                                  ),
-                                  indicators: token.indicators,
+                                  // volume: token.volume(selectedInterval),
+                                  // netVolume: token.netVolume(selectedInterval),
+                                  // marketCap: token.marketCap,
+                                  // sparklineData: token.sparkline(
+                                  //   selectedInterval,
+                                  // ),
+                                  // indicators: token.indicators,
+                                  historicalKlines: historicalKlines,
                                   onBuyPressed: () => onBuyPressed?.call(token),
                                   onQuickBuyPressed: () =>
                                       onQuickBuyPressed?.call(token),
