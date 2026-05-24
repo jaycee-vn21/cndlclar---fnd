@@ -14,7 +14,9 @@ import 'package:cndlclar/utils/constants.dart';
 import 'package:cndlclar/utils/config.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.connectToBackend = true});
+
+  final bool connectToBackend;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -121,9 +123,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
-    // connect to backend
     final tokensProvider = Provider.of<TokensProvider>(context, listen: false);
-    tokensProvider.connectToBackend(AppConfig.baseUrl);
+    if (widget.connectToBackend) {
+      tokensProvider.connectToBackend(AppConfig.baseUrl);
+    }
 
     // 2️⃣ Listen for tokens updates
     WidgetsBinding.instance.addPostFrameCallback((_) {

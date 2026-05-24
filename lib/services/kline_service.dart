@@ -18,8 +18,6 @@ class KlineService {
     );
     final response = await http.get(url);
     if (response.statusCode != 200) {
-      // print('no restAPI for: $symbol');
-      // throw Exception('Failed to fetch historical Klines');
       return [];
     }
 

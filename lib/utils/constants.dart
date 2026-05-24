@@ -262,8 +262,8 @@ class KGradients {
 
   static final tradingBuy = LinearGradient(
     colors: [
-      KColors.tradingBuy.withOpacity(0.9),
-      KColors.tradingBuy.withOpacity(0.6),
+      KColors.tradingBuy.withValues(alpha: 0.9),
+      KColors.tradingBuy.withValues(alpha: 0.6),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -271,8 +271,8 @@ class KGradients {
 
   static final tradingQuickBuy = LinearGradient(
     colors: [
-      KColors.tradingQuickBuy.withOpacity(0.9),
-      KColors.tradingQuickBuy.withOpacity(0.6),
+      KColors.tradingQuickBuy.withValues(alpha: 0.9),
+      KColors.tradingQuickBuy.withValues(alpha: 0.6),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -280,8 +280,8 @@ class KGradients {
 
   static final tradingSell = LinearGradient(
     colors: [
-      KColors.tradingSell.withOpacity(0.9),
-      KColors.tradingSell.withOpacity(0.6),
+      KColors.tradingSell.withValues(alpha: 0.9),
+      KColors.tradingSell.withValues(alpha: 0.6),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,

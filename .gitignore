@@ -45,8 +45,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-pubspec.lock
-
 # dotenv environment variables file
 .env*
 
@@ -73,6 +71,7 @@ build/
 android/build/
 ios/Pods/
 *.lock
+!pubspec.lock
 *.xcworkspace/
 .idea/
 .vscode/

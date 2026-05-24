@@ -11,7 +11,9 @@ void main() {
 }
 
 class CndlClarApp extends StatelessWidget {
-  const CndlClarApp({super.key});
+  const CndlClarApp({super.key, this.connectToBackend = true});
+
+  final bool connectToBackend;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +29,7 @@ class CndlClarApp extends StatelessWidget {
       child: MaterialApp(
         theme: ThemeData.dark(),
         debugShowCheckedModeBanner: false,
-        home: const NavScreen(),
+        home: NavScreen(connectToBackend: connectToBackend),
       ),
     );
   }

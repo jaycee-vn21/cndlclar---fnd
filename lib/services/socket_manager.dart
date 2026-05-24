@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class SocketManager {
@@ -11,12 +12,12 @@ class SocketManager {
       'autoConnect': false,
     });
 
-    socket.on('connect', (_) => print('Connected'));
-    socket.on('disconnect', (_) => print('Disconnected'));
+    socket.on('connect', (_) => debugPrint('Connected'));
+    socket.on('disconnect', (_) => debugPrint('Disconnected'));
 
     // Error handling
     socket.on('connect_error', (error) {
-      print('Connection error: $error');
+      debugPrint('Connection error: $error');
     });
 
     // Connect to the server

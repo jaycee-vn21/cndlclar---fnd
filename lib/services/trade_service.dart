@@ -21,14 +21,16 @@ class TradeService {
       'x-device-token': AppConfig.deviceToken,
     };
 
-    final body = jsonEncode({
+    final payload = <String, dynamic>{
       'symbol': symbol,
-      if (requestedLeverage != null) 'requestedLeverage': requestedLeverage,
-      if (priceToBuy != null) 'priceToBuy': priceToBuy,
-      if (stopLossPercent != null) 'stopLossPercent': stopLossPercent,
-      if (takeProfitPercent != null) 'takeProfitPercent': takeProfitPercent,
-      if (baseAmount != null) 'baseAmount': baseAmount,
-    });
+      'requestedLeverage': requestedLeverage,
+      'priceToBuy': priceToBuy,
+      'stopLossPercent': stopLossPercent,
+      'takeProfitPercent': takeProfitPercent,
+      'baseAmount': baseAmount,
+    }..removeWhere((_, value) => value == null);
+
+    final body = jsonEncode(payload);
 
     try {
       final response = await http.post(url, headers: headers, body: body);

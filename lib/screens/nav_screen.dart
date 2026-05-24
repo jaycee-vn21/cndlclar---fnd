@@ -6,16 +6,27 @@ import 'package:cndlclar/screens/home_screen.dart';
 import 'package:cndlclar/utils/constants.dart';
 
 class NavScreen extends StatefulWidget {
-  const NavScreen({super.key});
+  const NavScreen({super.key, this.connectToBackend = true});
+
+  final bool connectToBackend;
 
   @override
   State<NavScreen> createState() => _NavScreenState();
 }
 
 class _NavScreenState extends State<NavScreen> {
-  final List<Widget> _screens = const [HomeScreen(), AlertsScreen()];
+  late final List<Widget> _screens;
   final List<IconData> _icons = [KIcons.navHome, KIcons.navAlert];
   final List<String> _labels = ['Home', 'Alerts'];
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomeScreen(connectToBackend: widget.connectToBackend),
+      const AlertsScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
