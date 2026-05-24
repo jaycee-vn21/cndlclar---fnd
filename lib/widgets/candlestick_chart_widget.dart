@@ -64,7 +64,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
 
   void _startLongPressTimer(Offset globalPos) {
     _longPressTimer?.cancel();
-    _longPressTimer = Timer(const Duration(milliseconds: 300), () {
+    _longPressTimer = Timer(const Duration(milliseconds: 1000), () {
       final idx = _getNearestCandle(globalPos);
       if (idx != null) {
         setState(() {
