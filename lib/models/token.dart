@@ -7,11 +7,15 @@ class Token {
   final double tickerPriceChange1h;
 
   // Interval-based numeric properties
+  final Map<String, double> openPricePerInterval;
   final Map<String, double> closePricePerInterval;
+  final Map<String, double> highPricePerInterval;
+  final Map<String, double> lowPricePerInterval;
   final Map<String, double> priceChangePercentPerInterval;
   final Map<String, double> volumePerInterval;
   final Map<String, double> netVolumePerInterval;
   final Map<String, DateTime> intervalStartTimes;
+  final Map<String, bool> intervalClosedPerInterval;
 
   // Sparkline per interval (dummy generated externally)
   final Map<String, List<double>> sparklineData;
@@ -22,11 +26,15 @@ class Token {
     required this.marketCap,
     required this.indicators,
     required this.tickerPriceChange1h,
+    required this.openPricePerInterval,
     required this.closePricePerInterval,
+    required this.highPricePerInterval,
+    required this.lowPricePerInterval,
     required this.priceChangePercentPerInterval,
     required this.volumePerInterval,
     required this.netVolumePerInterval,
     required this.intervalStartTimes,
+    required this.intervalClosedPerInterval,
     required this.sparklineData,
     required this.sparklineDataOriginal,
   });
@@ -35,8 +43,12 @@ class Token {
     final priceChangePercentPerInterval = <String, double>{};
     final volumePerInterval = <String, double>{};
     final netVolumePerInterval = <String, double>{};
+    final openPricePerInterval = <String, double>{};
     final closePricePerInterval = <String, double>{};
+    final highPricePerInterval = <String, double>{};
+    final lowPricePerInterval = <String, double>{};
     final intervalStartTimes = <String, DateTime>{};
+    final intervalClosedPerInterval = <String, bool>{};
 
     // Empty sparkline placeholders (will be filled in TokensProvider)
     final sparklineData = <String, List<double>>{};
@@ -52,6 +64,9 @@ class Token {
       } else if (key.startsWith('netVolumeInMoney')) {
         final interval = key.replaceFirst('netVolumeInMoney', '');
         netVolumePerInterval[interval] = (value ?? 0).toDouble();
+      } else if (key.startsWith('openPrice')) {
+        final interval = key.replaceFirst('openPrice', '');
+        openPricePerInterval[interval] = (value ?? 0).toDouble();
       } else if (key.startsWith('closePrice')) {
         final interval = key.replaceFirst('closePrice', '');
         closePricePerInterval[interval] = (value ?? 0).toDouble();
@@ -59,6 +74,12 @@ class Token {
         // Sparkline will be injected later
         sparklineData[interval] = [];
         sparklineDataOriginal[interval] = [];
+      } else if (key.startsWith('highPrice')) {
+        final interval = key.replaceFirst('highPrice', '');
+        highPricePerInterval[interval] = (value ?? 0).toDouble();
+      } else if (key.startsWith('lowPrice')) {
+        final interval = key.replaceFirst('lowPrice', '');
+        lowPricePerInterval[interval] = (value ?? 0).toDouble();
       } else if (key.startsWith('intervalStartTime')) {
         final interval = key.replaceFirst('intervalStartTime', '');
         if (value != null) {
@@ -67,6 +88,9 @@ class Token {
             intervalStartTimes[interval] = dt;
           }
         }
+      } else if (key.startsWith('isIntervalClosed')) {
+        final interval = key.replaceFirst('isIntervalClosed', '');
+        intervalClosedPerInterval[interval] = value == true;
       }
     });
 
@@ -75,11 +99,15 @@ class Token {
       marketCap: (map['marketCap'] ?? 0).toDouble(),
       indicators: [], // will be set in provider
       tickerPriceChange1h: (map['tickerPriceChange1h'] ?? 0).toDouble(),
+      openPricePerInterval: openPricePerInterval,
       closePricePerInterval: closePricePerInterval,
+      highPricePerInterval: highPricePerInterval,
+      lowPricePerInterval: lowPricePerInterval,
       priceChangePercentPerInterval: priceChangePercentPerInterval,
       volumePerInterval: volumePerInterval,
       netVolumePerInterval: netVolumePerInterval,
       intervalStartTimes: intervalStartTimes,
+      intervalClosedPerInterval: intervalClosedPerInterval,
       sparklineData: sparklineData,
       sparklineDataOriginal: sparklineDataOriginal,
     );
@@ -88,12 +116,17 @@ class Token {
   // -------------------
   // Helper getters
   // -------------------
+  double openPrice(String interval) => openPricePerInterval[interval] ?? 0;
   double closePrice(String interval) => closePricePerInterval[interval] ?? 0;
+  double highPrice(String interval) => highPricePerInterval[interval] ?? 0;
+  double lowPrice(String interval) => lowPricePerInterval[interval] ?? 0;
   double priceChange(String interval) =>
       priceChangePercentPerInterval[interval] ?? 0;
   double volume(String interval) => volumePerInterval[interval] ?? 0;
   double netVolume(String interval) => netVolumePerInterval[interval] ?? 0;
   DateTime? startTime(String interval) => intervalStartTimes[interval];
+  bool isIntervalClosed(String interval) =>
+      intervalClosedPerInterval[interval] ?? false;
   List<double> sparkline(String interval) =>
       sparklineData[interval] ?? <double>[];
   List<double> sparklineOriginal(String interval) =>

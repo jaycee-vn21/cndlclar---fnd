@@ -5,6 +5,7 @@ class KlineData {
   final double low;
   final double close;
   final double volume;
+  final bool isClosed;
 
   double? ema9;
   double? ema21;
@@ -16,6 +17,7 @@ class KlineData {
     required this.low,
     required this.close,
     required this.volume,
+    this.isClosed = false,
     this.ema9,
     this.ema21,
   });
@@ -28,6 +30,7 @@ class KlineData {
       low: (json['low'] as num).toDouble(),
       close: (json['close'] as num).toDouble(),
       volume: (json['volume'] as num).toDouble(),
+      isClosed: (json['isClosed'] as bool?) ?? true,
     );
   }
 }

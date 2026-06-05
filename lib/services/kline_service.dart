@@ -16,14 +16,18 @@ class KlineService {
     final url = Uri.parse(
       '$baseUrl/api/v1/data/kline/historical?symbol=$symbol&interval=$interval&limit=$limit',
     );
-    final response = await http.get(url);
-    if (response.statusCode != 200) {
+    try {
+      final response = await http.get(url).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) {
+        return [];
+      }
+
+      final Map<String, dynamic> jsonData = jsonDecode(response.body);
+      final List<dynamic> candlesJson = jsonData['data'];
+
+      return candlesJson.map((e) => KlineData.fromJson(e)).toList();
+    } catch (_) {
       return [];
     }
-
-    final Map<String, dynamic> jsonData = jsonDecode(response.body);
-    final List<dynamic> candlesJson = jsonData['data'];
-
-    return candlesJson.map((e) => KlineData.fromJson(e)).toList();
   }
 }

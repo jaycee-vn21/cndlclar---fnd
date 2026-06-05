@@ -1,4 +1,5 @@
-import 'dart:async';
+import 'dart:collection';
+import 'dart:math' as math;
 import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -23,12 +24,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  Timer? _timer;
   final TradeService _tradeService = TradeService();
   final KlineService _klineService = KlineService(baseUrl: AppConfig.baseUrl);
 
   //Hhistorical candles per symbol and interval
   final Map<String, Map<String, List<KlineData>>> _historicalKlines = {};
+  final Set<String> _historicalFetchesInFlight = {};
+  final Set<String> _historicalFetchesCompleted = {};
+  final Set<String> _historicalFetchesQueued = {};
+  final Map<String, DateTime> _historicalFetchFailures = {};
+  final Queue<_HistoricalFetchRequest> _historicalFetchQueue =
+      Queue<_HistoricalFetchRequest>();
+  bool _isProcessingHistoricalFetchQueue = false;
+
+  TokensProvider? _tokensProvider;
+  IntervalProvider? _intervalProvider;
+
+  static const _historicalFetchRetryDelay = Duration(seconds: 20);
+  static const _historicalFetchSpacing = Duration(milliseconds: 120);
 
   Future<void> _handleTrade({
     required String action, // "buy" or "sell"
@@ -98,54 +111,241 @@ class _HomeScreenState extends State<HomeScreen> {
     _handleTrade(action: 'sell', symbol: token.name);
   }
 
-  Future<void> _fetchAllHistoricalKlines(
-    List<Token> tokens,
-    String selectedInterval,
-  ) async {
-    for (final Token token in tokens) {
-      _historicalKlines[token.name] ??= {};
+  void _handleMarketDataChanged() {
+    final tokens = _tokensProvider?.tokens ?? const <Token>[];
+    if (tokens.isEmpty) return;
 
-      final candles = await _klineService.fetchHistoricalKlines(
-        symbol: token.name,
-        interval: selectedInterval,
-        limit: 50,
-      );
+    final selectedInterval = _intervalProvider?.selectedInterval ?? '5m';
+    final didUpdateLiveCandles = _mergeLiveCandles(tokens, selectedInterval);
 
-      _historicalKlines[token.name]![selectedInterval] = candles;
-    }
+    _fetchMissingHistoricalKlines(tokens, selectedInterval);
 
-    if (mounted) {
+    if (didUpdateLiveCandles && mounted) {
       setState(() {});
     }
+  }
+
+  void _fetchMissingHistoricalKlines(
+    List<Token> tokens,
+    String selectedInterval,
+  ) {
+    for (final token in tokens) {
+      final key = _historicalKey(token.name, selectedInterval);
+      if (_historicalFetchesInFlight.contains(key) ||
+          _historicalFetchesCompleted.contains(key) ||
+          _historicalFetchesQueued.contains(key) ||
+          !_canRetryHistoricalFetch(key)) {
+        continue;
+      }
+
+      _historicalFetchQueue.add(
+        _HistoricalFetchRequest(
+          token: token,
+          interval: selectedInterval,
+          key: key,
+        ),
+      );
+      _historicalFetchesQueued.add(key);
+    }
+
+    _processHistoricalFetchQueue();
+  }
+
+  bool _canRetryHistoricalFetch(String key) {
+    final failedAt = _historicalFetchFailures[key];
+    if (failedAt == null) return true;
+    return DateTime.now().difference(failedAt) >= _historicalFetchRetryDelay;
+  }
+
+  Future<void> _processHistoricalFetchQueue() async {
+    if (_isProcessingHistoricalFetchQueue) return;
+    _isProcessingHistoricalFetchQueue = true;
+
+    try {
+      while (mounted && _historicalFetchQueue.isNotEmpty) {
+        final request = _historicalFetchQueue.removeFirst();
+        _historicalFetchesQueued.remove(request.key);
+
+        if (_historicalFetchesCompleted.contains(request.key)) {
+          continue;
+        }
+
+        _historicalFetchesInFlight.add(request.key);
+
+        final hasHistoricalCandles = await _fetchHistoricalKlinesForToken(
+          request.token,
+          request.interval,
+        );
+
+        _historicalFetchesInFlight.remove(request.key);
+        if (hasHistoricalCandles) {
+          _historicalFetchesCompleted.add(request.key);
+          _historicalFetchFailures.remove(request.key);
+        } else {
+          _historicalFetchFailures[request.key] = DateTime.now();
+        }
+
+        await Future<void>.delayed(_historicalFetchSpacing);
+      }
+    } finally {
+      _isProcessingHistoricalFetchQueue = false;
+    }
+  }
+
+  Future<bool> _fetchHistoricalKlinesForToken(
+    Token token,
+    String selectedInterval,
+  ) async {
+    final candles = await _klineService.fetchHistoricalKlines(
+      symbol: token.name,
+      interval: selectedInterval,
+      limit: 50,
+    );
+
+    if (!mounted) return candles.isNotEmpty;
+
+    final latestToken = _latestTokenForSymbol(token.name);
+    final liveCandle = latestToken == null
+        ? null
+        : _liveCandleFromToken(latestToken, selectedInterval);
+
+    final updatedCandles = liveCandle == null
+        ? _sortedLimitedCandles(candles)
+        : _upsertLiveCandle(candles, liveCandle);
+
+    setState(() {
+      _historicalKlines[token.name] ??= {};
+      _historicalKlines[token.name]![selectedInterval] = updatedCandles;
+    });
+
+    return candles.isNotEmpty;
+  }
+
+  bool _mergeLiveCandles(List<Token> tokens, String selectedInterval) {
+    var didUpdate = false;
+
+    for (final token in tokens) {
+      final liveCandle = _liveCandleFromToken(token, selectedInterval);
+      if (liveCandle == null) continue;
+
+      final tokenCandles = _historicalKlines.putIfAbsent(token.name, () => {});
+      final currentCandles =
+          tokenCandles[selectedInterval] ?? const <KlineData>[];
+
+      tokenCandles[selectedInterval] = _upsertLiveCandle(
+        currentCandles,
+        liveCandle,
+      );
+      didUpdate = true;
+    }
+
+    return didUpdate;
+  }
+
+  KlineData? _liveCandleFromToken(Token token, String selectedInterval) {
+    final startTime = token.startTime(selectedInterval);
+    final close = token.closePrice(selectedInterval);
+    if (startTime == null || close <= 0) return null;
+
+    final backendOpen = token.openPrice(selectedInterval);
+    final backendHigh = token.highPrice(selectedInterval);
+    final backendLow = token.lowPrice(selectedInterval);
+    final open = backendOpen > 0
+        ? backendOpen
+        : _openFromCloseAndChange(close, token.priceChange(selectedInterval));
+    final high = math.max(
+      backendHigh > 0 ? backendHigh : open,
+      math.max(open, close),
+    );
+    final low = math.min(
+      backendLow > 0 ? backendLow : open,
+      math.min(open, close),
+    );
+
+    return KlineData(
+      time: startTime,
+      open: open,
+      high: high,
+      low: low,
+      close: close,
+      volume: token.volume(selectedInterval),
+      isClosed: token.isIntervalClosed(selectedInterval),
+    );
+  }
+
+  double _openFromCloseAndChange(double close, double priceChangePercent) {
+    final factor = 1 + (priceChangePercent / 100);
+    if (factor <= 0) return close;
+    return close / factor;
+  }
+
+  List<KlineData> _upsertLiveCandle(
+    List<KlineData> candles,
+    KlineData liveCandle,
+  ) {
+    final updated = _sortedLimitedCandles(candles);
+    final liveTime = liveCandle.time.millisecondsSinceEpoch;
+    final existingIndex = updated.indexWhere(
+      (candle) => candle.time.millisecondsSinceEpoch == liveTime,
+    );
+
+    if (existingIndex == -1) {
+      updated.add(liveCandle);
+      return _sortedLimitedCandles(updated);
+    }
+
+    final existing = updated[existingIndex];
+    updated[existingIndex] = KlineData(
+      time: existing.time,
+      open: existing.open,
+      high: math.max(existing.high, liveCandle.high),
+      low: math.min(existing.low, liveCandle.low),
+      close: liveCandle.close,
+      volume: liveCandle.volume > 0 ? liveCandle.volume : existing.volume,
+      isClosed: liveCandle.isClosed,
+    );
+
+    return updated;
+  }
+
+  List<KlineData> _sortedLimitedCandles(List<KlineData> candles) {
+    final sorted = List<KlineData>.from(candles)
+      ..sort((a, b) => a.time.compareTo(b.time));
+    if (sorted.length <= 50) return sorted;
+    return sorted.sublist(sorted.length - 50);
+  }
+
+  String _historicalKey(String symbol, String interval) {
+    return '$symbol|$interval';
+  }
+
+  Token? _latestTokenForSymbol(String symbol) {
+    final tokens = _tokensProvider?.tokens ?? const <Token>[];
+    for (final token in tokens) {
+      if (token.name == symbol) return token;
+    }
+    return null;
   }
 
   @override
   void initState() {
     super.initState();
 
-    final tokensProvider = Provider.of<TokensProvider>(context, listen: false);
+    _tokensProvider = Provider.of<TokensProvider>(context, listen: false);
+    _intervalProvider = Provider.of<IntervalProvider>(context, listen: false);
+
     if (widget.connectToBackend) {
-      tokensProvider.connectToBackend(AppConfig.baseUrl);
+      _tokensProvider?.connectToBackend(AppConfig.baseUrl);
     }
 
-    // 2️⃣ Listen for tokens updates
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      tokensProvider.addListener(() {
-        if (tokensProvider.tokens.isNotEmpty) {
-          final interval = Provider.of<IntervalProvider>(
-            context,
-            listen: false,
-          ).selectedInterval;
-
-          _fetchAllHistoricalKlines(tokensProvider.tokens, interval);
-        }
-      });
-    });
+    _tokensProvider?.addListener(_handleMarketDataChanged);
+    _intervalProvider?.addListener(_handleMarketDataChanged);
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _tokensProvider?.removeListener(_handleMarketDataChanged);
+    _intervalProvider?.removeListener(_handleMarketDataChanged);
     super.dispose();
   }
 
@@ -200,4 +400,16 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+class _HistoricalFetchRequest {
+  const _HistoricalFetchRequest({
+    required this.token,
+    required this.interval,
+    required this.key,
+  });
+
+  final Token token;
+  final String interval;
+  final String key;
 }

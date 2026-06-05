@@ -1,16 +1,23 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cndlclar/models/kline_data.dart';
 import 'package:cndlclar/utils/constants.dart';
 
+const int _minimumVisibleCandles = 50;
+
 class CandlestickChartWidget extends StatefulWidget {
   final List<KlineData> candles;
   final String symbol;
+  final bool showEma;
+  final bool showRsi;
 
   const CandlestickChartWidget({
     super.key,
     required this.candles,
     this.symbol = '',
+    this.showEma = true,
+    this.showRsi = true,
   });
 
   @override
@@ -20,9 +27,15 @@ class CandlestickChartWidget extends StatefulWidget {
 class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   late List<KlineData> _sorted;
 
-  final double _candlesChartHeight = 200;
-  final double _volumeChartHeight = 50;
+  final double _candlesChartHeight = 170;
+  final double _volumeChartHeight = 40;
+  final double _rsiChartHeight = 40;
   final double _tooltipMaxWidth = 220;
+
+  double get _contentHeight =>
+      _candlesChartHeight +
+      _volumeChartHeight +
+      (widget.showRsi ? _rsiChartHeight : 0);
 
   double _scale = 1.0;
   Offset _panOffset = Offset.zero;
@@ -101,7 +114,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
 
   double _candleWidth(double chartWidth) {
     if (_sorted.isEmpty) return 0;
-    return chartWidth / _sorted.length;
+    return chartWidth / math.max(_sorted.length, _minimumVisibleCandles);
   }
 
   Widget _buildTooltip(KlineData d) {
@@ -212,7 +225,10 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
                     panOffset: _panOffset,
                     candleHeight: _candlesChartHeight,
                     volumeHeight: _volumeChartHeight,
+                    rsiHeight: _rsiChartHeight,
                     activeIndex: _activeIndex,
+                    showEma: widget.showEma,
+                    showRsi: widget.showRsi,
                   ),
                 ),
               ),
@@ -238,7 +254,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
                     }
                     double top = (local.dy - 140).clamp(
                       8.0,
-                      _candlesChartHeight + _volumeChartHeight - 80,
+                      _contentHeight - 80,
                     );
                     return Positioned(left: left, top: top, child: tooltip);
                   },
@@ -257,7 +273,10 @@ class _CandlestickPainter extends CustomPainter {
   final Offset panOffset;
   final double candleHeight;
   final double volumeHeight;
+  final double rsiHeight;
   final int? activeIndex;
+  final bool showEma;
+  final bool showRsi;
 
   _CandlestickPainter({
     required this.candles,
@@ -265,7 +284,10 @@ class _CandlestickPainter extends CustomPainter {
     required this.panOffset,
     required this.candleHeight,
     required this.volumeHeight,
+    required this.rsiHeight,
     required this.activeIndex,
+    required this.showEma,
+    required this.showRsi,
   });
 
   @override
@@ -277,12 +299,59 @@ class _CandlestickPainter extends CustomPainter {
       ..color = Colors.white24
       ..strokeWidth = 1;
     final dotPaint = Paint()..color = Colors.white;
+    final gridPaint = Paint()
+      ..color = Colors.white10
+      ..strokeWidth = 1;
+    final ema9Paint = Paint()
+      ..color = const Color(0xFFF6C85F)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final ema21Paint = Paint()
+      ..color = const Color(0xFF8D7CFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final rsiPaint = Paint()
+      ..color = const Color(0xFF4FC3F7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
 
-    final candleWidth = size.width / candles.length * scale;
+    final candleWidth =
+        size.width / math.max(candles.length, _minimumVisibleCandles) * scale;
+    final contentHeight =
+        candleHeight + volumeHeight + (showRsi ? rsiHeight : 0);
+    final volumeTop = candleHeight;
+    final rsiTop = candleHeight + volumeHeight;
 
     double low = candles.map((e) => e.low).reduce((a, b) => a < b ? a : b);
     double high = candles.map((e) => e.high).reduce((a, b) => a > b ? a : b);
-    double range = (high - low) == 0 ? 1 : (high - low);
+
+    final ema9Values = showEma ? _emaValues(9) : const <double?>[];
+    final ema21Values = showEma ? _emaValues(21) : const <double?>[];
+    if (showEma) {
+      for (final value in [...ema9Values, ...ema21Values]) {
+        if (value == null) continue;
+        if (value < low) low = value;
+        if (value > high) high = value;
+      }
+    }
+
+    final rawRange = high - low;
+    final pricePadding = rawRange == 0
+        ? math.max(high.abs() * 0.01, 1e-12)
+        : rawRange * 0.08;
+    low -= pricePadding;
+    high += pricePadding;
+    final range = high - low;
+
+    for (var i = 1; i < 4; i++) {
+      final y = candleHeight * i / 4;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    canvas.drawLine(
+      Offset(0, volumeTop),
+      Offset(size.width, volumeTop),
+      gridPaint,
+    );
 
     for (int i = 0; i < candles.length; i++) {
       final c = candles[i];
@@ -314,7 +383,13 @@ class _CandlestickPainter extends CustomPainter {
         Offset(left + (right - left) / 2, bottom),
         candlePaint,
       );
-      // optional: EMA lines could be drawn here
+    }
+
+    if (showEma) {
+      _drawLineSeries(canvas, ema9Values, low, range, candleWidth, ema9Paint);
+      _drawLineSeries(canvas, ema21Values, low, range, candleWidth, ema21Paint);
+      _drawLabel(canvas, 'EMA9', const Offset(8, 6), ema9Paint.color);
+      _drawLabel(canvas, 'EMA21', const Offset(58, 6), ema21Paint.color);
     }
 
     // volume bars
@@ -325,19 +400,29 @@ class _CandlestickPainter extends CustomPainter {
       final c = candles[i];
       final left = i * candleWidth + panOffset.dx;
       final right = left + candleWidth * 0.8;
-      final volHeight = (c.volume / maxVol) * volumeHeight;
+      final volHeight = maxVol <= 0 ? 0.0 : (c.volume / maxVol) * volumeHeight;
       candlePaint.color = c.close >= c.open
           ? KColors.accentPositive
           : KColors.accentNegative;
       canvas.drawRect(
         Rect.fromLTRB(
           left,
-          candleHeight + volumeHeight - volHeight,
+          volumeTop + volumeHeight - volHeight,
           right,
-          candleHeight + volumeHeight,
+          volumeTop + volumeHeight,
         ),
         candlePaint,
       );
+    }
+
+    if (showRsi) {
+      canvas.drawLine(Offset(0, rsiTop), Offset(size.width, rsiTop), gridPaint);
+      final rsi70 = rsiTop + rsiHeight * 0.3;
+      final rsi30 = rsiTop + rsiHeight * 0.7;
+      canvas.drawLine(Offset(0, rsi70), Offset(size.width, rsi70), gridPaint);
+      canvas.drawLine(Offset(0, rsi30), Offset(size.width, rsi30), gridPaint);
+      _drawRsi(canvas, _rsiValues(), candleWidth, rsiTop, rsiHeight, rsiPaint);
+      _drawLabel(canvas, 'RSI14', Offset(8, rsiTop + 6), rsiPaint.color);
     }
 
     // Crosshair
@@ -349,7 +434,7 @@ class _CandlestickPainter extends CustomPainter {
       // vertical
       canvas.drawLine(
         Offset(centerX, 0),
-        Offset(centerX, candleHeight + volumeHeight),
+        Offset(centerX, contentHeight),
         linePaint,
       );
       // horizontal
@@ -359,10 +444,142 @@ class _CandlestickPainter extends CustomPainter {
     }
   }
 
+  List<double?> _emaValues(int period) {
+    final values = List<double?>.filled(candles.length, null);
+    if (candles.isEmpty) return values;
+
+    final multiplier = 2 / (period + 1);
+    var ema = candles.first.close;
+    for (var i = 0; i < candles.length; i++) {
+      final close = candles[i].close;
+      ema = i == 0 ? close : (close - ema) * multiplier + ema;
+      if (i >= period - 1) {
+        values[i] = ema;
+      }
+    }
+
+    return values;
+  }
+
+  List<double?> _rsiValues({int period = 14}) {
+    final values = List<double?>.filled(candles.length, null);
+    if (candles.length <= period) return values;
+
+    var averageGain = 0.0;
+    var averageLoss = 0.0;
+
+    for (var i = 1; i <= period; i++) {
+      final change = candles[i].close - candles[i - 1].close;
+      if (change >= 0) {
+        averageGain += change;
+      } else {
+        averageLoss -= change;
+      }
+    }
+
+    averageGain /= period;
+    averageLoss /= period;
+    values[period] = _rsiFromAverages(averageGain, averageLoss);
+
+    for (var i = period + 1; i < candles.length; i++) {
+      final change = candles[i].close - candles[i - 1].close;
+      final gain = change > 0 ? change : 0.0;
+      final loss = change < 0 ? -change : 0.0;
+      averageGain = ((averageGain * (period - 1)) + gain) / period;
+      averageLoss = ((averageLoss * (period - 1)) + loss) / period;
+      values[i] = _rsiFromAverages(averageGain, averageLoss);
+    }
+
+    return values;
+  }
+
+  double _rsiFromAverages(double averageGain, double averageLoss) {
+    if (averageLoss == 0) return 100;
+    final relativeStrength = averageGain / averageLoss;
+    return 100 - (100 / (1 + relativeStrength));
+  }
+
+  void _drawLineSeries(
+    Canvas canvas,
+    List<double?> values,
+    double low,
+    double range,
+    double candleWidth,
+    Paint paint,
+  ) {
+    final path = Path();
+    var hasStarted = false;
+
+    for (var i = 0; i < values.length; i++) {
+      final value = values[i];
+      if (value == null) continue;
+
+      final x = i * candleWidth + candleWidth / 2 + panOffset.dx;
+      final y = candleHeight - ((value - low) / range * candleHeight);
+      if (!hasStarted) {
+        path.moveTo(x, y);
+        hasStarted = true;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    if (hasStarted) {
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  void _drawRsi(
+    Canvas canvas,
+    List<double?> values,
+    double candleWidth,
+    double top,
+    double height,
+    Paint paint,
+  ) {
+    final path = Path();
+    var hasStarted = false;
+
+    for (var i = 0; i < values.length; i++) {
+      final value = values[i];
+      if (value == null) continue;
+
+      final x = i * candleWidth + candleWidth / 2 + panOffset.dx;
+      final y = top + height - (value.clamp(0.0, 100.0) / 100 * height);
+      if (!hasStarted) {
+        path.moveTo(x, y);
+        hasStarted = true;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    if (hasStarted) {
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  void _drawLabel(Canvas canvas, String text, Offset offset, Color color) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(canvas, offset);
+  }
+
   @override
   bool shouldRepaint(covariant _CandlestickPainter old) =>
       old.candles != candles ||
       old.scale != scale ||
       old.panOffset != panOffset ||
-      old.activeIndex != activeIndex;
+      old.activeIndex != activeIndex ||
+      old.showEma != showEma ||
+      old.showRsi != showRsi;
 }

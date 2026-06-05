@@ -62,6 +62,14 @@ class TokenCardWidget extends StatelessWidget {
     return value.toStringAsFixed(0);
   }
 
+  String _formatPrice(double value) {
+    final absoluteValue = value.abs();
+    if (absoluteValue >= 1) return value.toStringAsFixed(2);
+    if (absoluteValue >= 0.01) return value.toStringAsFixed(4);
+    if (absoluteValue >= 0.0001) return value.toStringAsFixed(6);
+    return value.toStringAsFixed(8);
+  }
+
   // -----------------------------
   // Build a single metric row (Selected Interval, 24h change, etc.)
   // -----------------------------
@@ -127,7 +135,7 @@ class TokenCardWidget extends StatelessWidget {
                     style: KTextStyles.tokenName,
                   ),
                   Text(
-                    "\$${currentPrice.toStringAsFixed(5)}",
+                    "\$${_formatPrice(currentPrice)}",
                     style: KTextStyles.tokenPrice,
                   ),
                 ],
@@ -145,6 +153,7 @@ class TokenCardWidget extends StatelessWidget {
                   child: SizedBox(
                     height: 250, // small chart height for token card
                     child: CandlestickChartWidget(
+                      symbol: tokenName,
                       candles:
                           historicalKlines![tokenName]?[selectedInterval] ?? [],
                     ),
