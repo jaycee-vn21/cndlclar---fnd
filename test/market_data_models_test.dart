@@ -1,4 +1,5 @@
 import 'package:cndlclar/models/kline_data.dart';
+import 'package:cndlclar/models/short_term_buy_candidate.dart';
 import 'package:cndlclar/models/token.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,10 +33,36 @@ void main() {
       'high': 110.0,
       'low': 95.0,
       'close': 105.0,
-      'volume': 1234.0,
+      'volumeUsdt': 1234.0,
+      'netVolumeUsdt': -234.0,
       'isClosed': true,
     });
 
     expect(candle.isClosed, isTrue);
+    expect(candle.volume, 1234);
+    expect(candle.volumeUsdt, 1234);
+    expect(candle.netVolumeUsdt, -234);
+  });
+
+  test('ShortTermBuyCandidate parses backend signal payload', () {
+    final candidate = ShortTermBuyCandidate.fromMap({
+      'rank': 1,
+      'tokenName': 'BTCUSDT',
+      'score': 57,
+      'reasons': ['+8 5m volume >= 100k', '-6 spread too wide'],
+      'metrics': {
+        'priceChange5m': 1.25,
+        'relativeVolume5m': '3.4',
+        'rsi14in5m': null,
+      },
+    });
+
+    expect(candidate.rank, 1);
+    expect(candidate.tokenName, 'BTCUSDT');
+    expect(candidate.score, 57);
+    expect(candidate.reasons, hasLength(2));
+    expect(candidate.metric('priceChange5m'), 1.25);
+    expect(candidate.metric('relativeVolume5m'), 3.4);
+    expect(candidate.metric('rsi14in5m'), isNull);
   });
 }

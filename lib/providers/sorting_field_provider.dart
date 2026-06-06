@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 
+class SortingFields {
+  static const priceChange = 'priceChange';
+  static const tickerPriceChange1h = 'tickerPriceChange1h';
+  static const signalScore = 'signalScore';
+  static const volume = 'volume';
+  static const relativeVolume5m = 'relativeVolume5m';
+  static const ema7Setup = 'ema7Setup';
+}
+
 class SortingFieldProvider extends ChangeNotifier {
-  String _sortingField = 'priceChange';
+  String _sortingField = SortingFields.priceChange;
 
   String get sortingField => _sortingField;
 

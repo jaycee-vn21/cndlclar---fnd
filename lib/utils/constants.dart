@@ -18,6 +18,7 @@ class KColors {
 
   static const accentPositive = Color(0xFF00C49A);
   static const accentNegative = Color(0xFFFF6B6B);
+  static const accentWarning = Color(0xFFFFC857);
   static const intervalUnselected = Colors.white12;
 
   static const progressBackground = Color(0xFF2A2A2A);
@@ -34,6 +35,9 @@ class KColors {
 
   static const tradeSuccessfulSnackbar = activeIcon;
   static const tradeFailedSnackbar = accentNegative;
+
+  static const controlBackground = Color(0xFF1A1D20);
+  static const controlBorder = Color(0x22FFFFFF);
 }
 
 /// ---------------- Sizes ----------------
@@ -92,6 +96,10 @@ class KSizes {
   static const tradingButtonHorizontalPadding = 10.0;
   static const tradingButtonVerticalPadding = 8.0;
   static const tradingButtonSpacing = 8.0;
+
+  // Scanner Controls
+  static const scannerControlBorderRadius = 8.0;
+  static const scannerControlHeight = 42.0;
 }
 
 /// ---------------- Spacing ----------------
@@ -179,6 +187,30 @@ class KTextStyles {
     fontSize: 13,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.3,
+  );
+
+  static const scannerMeta = TextStyle(
+    color: KColors.textSecondary,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+  );
+
+  static const signalScore = TextStyle(
+    color: KColors.textPrimary,
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+  );
+
+  static const emptyStateTitle = TextStyle(
+    color: KColors.textPrimary,
+    fontSize: 16,
+    fontWeight: FontWeight.w700,
+  );
+
+  static const emptyStateSubtitle = TextStyle(
+    color: KColors.textSecondary,
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
   );
 }
 
@@ -293,4 +325,8 @@ class KIcons {
   static const navHome = CupertinoIcons.graph_circle;
   static const navAlert = CupertinoIcons.bell;
   static const setSortingField = CupertinoIcons.sort_down_circle;
+  static const search = CupertinoIcons.search;
+  static const clear = CupertinoIcons.xmark_circle_fill;
+  static const signal = CupertinoIcons.bolt_fill;
+  static const sort = CupertinoIcons.slider_horizontal_3;
 }

@@ -14,6 +14,8 @@ import 'package:cndlclar/widgets/token_list_view_section.dart';
 import 'package:cndlclar/utils/constants.dart';
 import 'package:cndlclar/utils/config.dart';
 
+enum _TokenFeedMode { all, signals }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.connectToBackend = true});
 
@@ -26,6 +28,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TradeService _tradeService = TradeService();
   final KlineService _klineService = KlineService(baseUrl: AppConfig.baseUrl);
+  final TextEditingController _searchController = TextEditingController();
 
   //Hhistorical candles per symbol and interval
   final Map<String, Map<String, List<KlineData>>> _historicalKlines = {};
@@ -39,6 +42,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   TokensProvider? _tokensProvider;
   IntervalProvider? _intervalProvider;
+  _TokenFeedMode _feedMode = _TokenFeedMode.all;
+  bool _isSearchOpen = false;
+  String _searchQuery = '';
 
   static const _historicalFetchRetryDelay = Duration(seconds: 20);
   static const _historicalFetchSpacing = Duration(milliseconds: 120);
@@ -269,6 +275,8 @@ class _HomeScreenState extends State<HomeScreen> {
       low: low,
       close: close,
       volume: token.volume(selectedInterval),
+      volumeUsdt: token.volume(selectedInterval),
+      netVolumeUsdt: token.netVolume(selectedInterval),
       isClosed: token.isIntervalClosed(selectedInterval),
     );
   }
@@ -302,6 +310,10 @@ class _HomeScreenState extends State<HomeScreen> {
       low: math.min(existing.low, liveCandle.low),
       close: liveCandle.close,
       volume: liveCandle.volume > 0 ? liveCandle.volume : existing.volume,
+      volumeUsdt: liveCandle.volumeUsdt > 0
+          ? liveCandle.volumeUsdt
+          : existing.volumeUsdt,
+      netVolumeUsdt: liveCandle.netVolumeUsdt,
       isClosed: liveCandle.isClosed,
     );
 
@@ -346,7 +358,196 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _tokensProvider?.removeListener(_handleMarketDataChanged);
     _intervalProvider?.removeListener(_handleMarketDataChanged);
+    _searchController.dispose();
     super.dispose();
+  }
+
+  String _formatSignalsUpdatedAt(DateTime? updatedAt) {
+    if (updatedAt == null) return 'waiting';
+
+    final local = updatedAt.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    final second = local.second.toString().padLeft(2, '0');
+
+    return '$hour:$minute:$second';
+  }
+
+  CheckedPopupMenuItem<String> _sortMenuItem({
+    required String selectedSort,
+    required String value,
+    required String label,
+  }) {
+    return CheckedPopupMenuItem<String>(
+      value: value,
+      checked: selectedSort == value,
+      child: Text(label),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Container(
+      height: KSizes.scannerControlHeight,
+      decoration: BoxDecoration(
+        color: KColors.controlBackground,
+        border: Border.all(color: KColors.controlBorder),
+        borderRadius: BorderRadius.circular(KSizes.scannerControlBorderRadius),
+      ),
+      child: TextField(
+        controller: _searchController,
+        autofocus: true,
+        textInputAction: TextInputAction.search,
+        onChanged: (value) => setState(() => _searchQuery = value),
+        style: KTextStyles.tokenMetricValue,
+        decoration: InputDecoration(
+          hintText: 'Search symbol',
+          hintStyle: KTextStyles.scannerMeta,
+          prefixIcon: const Icon(
+            KIcons.search,
+            color: KColors.textSecondary,
+            size: 20,
+          ),
+          suffixIcon: IconButton(
+            tooltip: _searchQuery.isEmpty ? 'Close search' : 'Clear search',
+            onPressed: () {
+              if (_searchQuery.isEmpty) {
+                setState(() => _isSearchOpen = false);
+                return;
+              }
+
+              _searchController.clear();
+              setState(() => _searchQuery = '');
+            },
+            icon: const Icon(
+              KIcons.clear,
+              color: KColors.textSecondary,
+              size: 18,
+            ),
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 11),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScannerControls() {
+    return Consumer2<TokensProvider, SortingFieldProvider>(
+      builder: (context, tokensProvider, sortingFieldProvider, child) {
+        final signalCount = tokensProvider.shortTermBuyCandidates.length;
+        final updatedAt = _formatSignalsUpdatedAt(
+          tokensProvider.shortTermBuyCandidatesUpdatedAt,
+        );
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KSizes.listViewHorizontalPadding,
+            KSpacing.xs,
+            KSizes.listViewHorizontalPadding,
+            KSpacing.sm,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: SegmentedButton<_TokenFeedMode>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment<_TokenFeedMode>(
+                          value: _TokenFeedMode.all,
+                          label: Text('All'),
+                        ),
+                        ButtonSegment<_TokenFeedMode>(
+                          value: _TokenFeedMode.signals,
+                          label: Text('Signals'),
+                        ),
+                      ],
+                      selected: {_feedMode},
+                      onSelectionChanged: (selection) {
+                        final nextMode = selection.first;
+                        setState(() => _feedMode = nextMode);
+
+                        if (nextMode == _TokenFeedMode.signals &&
+                            sortingFieldProvider.sortingField ==
+                                SortingFields.priceChange) {
+                          sortingFieldProvider.setSortingField(
+                            SortingFields.signalScore,
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: KSpacing.sm),
+                  IconButton(
+                    tooltip: 'Search',
+                    onPressed: () {
+                      setState(() => _isSearchOpen = !_isSearchOpen);
+                    },
+                    icon: Icon(
+                      KIcons.search,
+                      color: _isSearchOpen
+                          ? KColors.activeIcon
+                          : KColors.textPrimary,
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Sort',
+                    icon: const Icon(KIcons.sort, color: KColors.textPrimary),
+                    initialValue: sortingFieldProvider.sortingField,
+                    onSelected: sortingFieldProvider.setSortingField,
+                    itemBuilder: (context) => [
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.priceChange,
+                        label: 'Interval change',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.tickerPriceChange1h,
+                        label: 'Ticker 1h change',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.signalScore,
+                        label: 'Signal score',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.volume,
+                        label: 'Volume',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.relativeVolume5m,
+                        label: 'Relative volume',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.ema7Setup,
+                        label: 'EMA7 pullback',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (_isSearchOpen) ...[
+                const SizedBox(height: KSpacing.sm),
+                _buildSearchField(),
+              ],
+              if (_feedMode == _TokenFeedMode.signals) ...[
+                const SizedBox(height: KSpacing.xs),
+                Text(
+                  '$signalCount candidates - updated $updatedAt',
+                  style: KTextStyles.scannerMeta,
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -358,45 +559,35 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         centerTitle: true,
         elevation: 0,
-        actions: [
-          //Set sorting
-          IconButton(
-            onPressed: () {
-              final sortingFieldProvider = Provider.of<SortingFieldProvider>(
-                context,
-                listen: false,
-              );
-              sortingFieldProvider.sortingField == 'priceChange'
-                  ? sortingFieldProvider.setSortingField('tickerPriceChange1h')
-                  : sortingFieldProvider.setSortingField('priceChange');
-            },
-            icon: const Icon(
-              KIcons.setSortingField,
-              size: KSizes.navIconSize,
-              color: KColors.textPrimary,
+      ),
+      body: Column(
+        children: [
+          _buildScannerControls(),
+          Expanded(
+            child: TokenListViewSection(
+              showList: true,
+              historicalKlines: _historicalKlines,
+              searchQuery: _searchQuery,
+              showSignalsOnly: _feedMode == _TokenFeedMode.signals,
+              onTokenTap: (token) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => IndividualTokenScreen(
+                      token: token,
+                      historicalKlines: _historicalKlines,
+                      onBuyPressed: () => _buyPressed(token),
+                      onQuickBuyPressed: () => _quickBuyPressed(token),
+                      onSellPressed: () => _sellPressed(token),
+                    ),
+                  ),
+                );
+              },
+              onBuyPressed: _buyPressed,
+              onQuickBuyPressed: _quickBuyPressed,
+              onSellPressed: _sellPressed,
             ),
           ),
         ],
-      ),
-      body: TokenListViewSection(
-        showList: true,
-        historicalKlines: _historicalKlines,
-        onTokenTap: (token) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => IndividualTokenScreen(
-                token: token,
-                historicalKlines: _historicalKlines,
-                onBuyPressed: () => _buyPressed(token),
-                onQuickBuyPressed: () => _quickBuyPressed(token),
-                onSellPressed: () => _sellPressed(token),
-              ),
-            ),
-          );
-        },
-        onBuyPressed: _buyPressed,
-        onQuickBuyPressed: _quickBuyPressed,
-        onSellPressed: _sellPressed,
       ),
     );
   }

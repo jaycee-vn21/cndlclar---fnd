@@ -1,13 +1,16 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:cndlclar/models/short_term_buy_candidate.dart';
 import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/models/indicator.dart';
 import 'package:cndlclar/services/socket_manager.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class TokensProvider with ChangeNotifier {
-  late io.Socket _socket;
+  io.Socket? _socket;
   List<Token> _tokens = [];
+  List<ShortTermBuyCandidate> _shortTermBuyCandidates = [];
+  DateTime? _shortTermBuyCandidatesUpdatedAt;
 
   // Stores sparkline per token and interval for quick updates
   Map<String, Map<String, List<double>>> tokenSparklines = {};
@@ -18,14 +21,31 @@ class TokensProvider with ChangeNotifier {
   bool isConnected = false;
 
   List<Token> get tokens => _tokens;
+  List<ShortTermBuyCandidate> get shortTermBuyCandidates =>
+      _shortTermBuyCandidates;
+  DateTime? get shortTermBuyCandidatesUpdatedAt =>
+      _shortTermBuyCandidatesUpdatedAt;
+
+  Map<String, ShortTermBuyCandidate> get shortTermBuyCandidatesBySymbol => {
+    for (final candidate in _shortTermBuyCandidates)
+      candidate.tokenName: candidate,
+  };
 
   // --------------------------
   // --- SOCKET / BACKEND DATA ---
   // --------------------------
   void connectToBackend(String socketUrl) {
-    _socket = SocketManager(socketUrl).connectToSocket();
+    if (_socket != null) return;
 
-    _socket.on('klinesCombined', (backendTokensData) {
+    final socket = SocketManager(socketUrl).connectToSocket();
+    _socket = socket;
+
+    socket.on('disconnect', (_) {
+      isConnected = false;
+      notifyListeners();
+    });
+
+    socket.on('klinesCombined', (backendTokensData) {
       final List<Token> updatedTokens = [];
 
       for (final tokenMap in backendTokensData) {
@@ -69,6 +89,34 @@ class TokensProvider with ChangeNotifier {
       isConnected = true;
       notifyListeners();
     });
+
+    socket.on('shortTermBuyCandidates', _handleShortTermBuyCandidates);
+  }
+
+  void _handleShortTermBuyCandidates(dynamic payload) {
+    if (payload is! Map) return;
+
+    final data = Map<String, dynamic>.from(payload);
+    final rawCandidates = data['candidates'];
+    final parsedCandidates = <ShortTermBuyCandidate>[];
+
+    if (rawCandidates is List) {
+      for (final rawCandidate in rawCandidates) {
+        if (rawCandidate is Map) {
+          parsedCandidates.add(
+            ShortTermBuyCandidate.fromMap(
+              Map<String, dynamic>.from(rawCandidate),
+            ),
+          );
+        }
+      }
+    }
+
+    _shortTermBuyCandidates = parsedCandidates;
+    _shortTermBuyCandidatesUpdatedAt = DateTime.tryParse(
+      data['generatedAt']?.toString() ?? '',
+    );
+    notifyListeners();
   }
 
   // --------------------------

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cndlclar/providers/chart_indicator_visibility_provider.dart';
 import 'package:cndlclar/providers/current_screen_index_provider.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
@@ -25,6 +26,9 @@ class CndlClarApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => TokensProvider()),
         ChangeNotifierProvider(create: (context) => IntervalProvider()),
         ChangeNotifierProvider(create: (context) => SortingFieldProvider()),
+        ChangeNotifierProvider(
+          create: (context) => ChartIndicatorVisibilityProvider(),
+        ),
       ],
       child: MaterialApp(
         theme: ThemeData.dark(),
