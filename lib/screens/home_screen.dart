@@ -16,6 +16,8 @@ import 'package:cndlclar/utils/config.dart';
 
 enum _TokenFeedMode { all, signals }
 
+enum _SignalFeedFilter { all, setup, elastic }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.connectToBackend = true});
 
@@ -43,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
   TokensProvider? _tokensProvider;
   IntervalProvider? _intervalProvider;
   _TokenFeedMode _feedMode = _TokenFeedMode.all;
+  _SignalFeedFilter _signalFilter = _SignalFeedFilter.all;
   bool _isSearchOpen = false;
   String _searchQuery = '';
 
@@ -373,6 +376,67 @@ class _HomeScreenState extends State<HomeScreen> {
     return '$hour:$minute:$second';
   }
 
+  String _signalFilterValue(_SignalFeedFilter filter) {
+    switch (filter) {
+      case _SignalFeedFilter.setup:
+        return 'normal';
+      case _SignalFeedFilter.elastic:
+        return 'elastic';
+      case _SignalFeedFilter.all:
+        return 'all';
+    }
+  }
+
+  String _signalFilterLabel(_SignalFeedFilter filter) {
+    switch (filter) {
+      case _SignalFeedFilter.setup:
+        return 'setup';
+      case _SignalFeedFilter.elastic:
+        return 'elastic';
+      case _SignalFeedFilter.all:
+        return 'signals';
+    }
+  }
+
+  int _signalCountForFilter(TokensProvider tokensProvider) {
+    switch (_signalFilter) {
+      case _SignalFeedFilter.setup:
+        return tokensProvider.shortTermBuyCandidates
+            .where((candidate) => candidate.hasSetupSignal)
+            .length;
+      case _SignalFeedFilter.elastic:
+        return tokensProvider.shortTermBuyCandidates
+            .where((candidate) => candidate.hasElasticSignal)
+            .length;
+      case _SignalFeedFilter.all:
+        return tokensProvider.shortTermBuyCandidates.length;
+    }
+  }
+
+  void _setSignalFilter(
+    _SignalFeedFilter nextFilter,
+    SortingFieldProvider sortingFieldProvider,
+  ) {
+    setState(() => _signalFilter = nextFilter);
+
+    switch (nextFilter) {
+      case _SignalFeedFilter.setup:
+        sortingFieldProvider.setSortingField(SortingFields.setupSignalScore);
+        break;
+      case _SignalFeedFilter.elastic:
+        sortingFieldProvider.setSortingField(SortingFields.elasticSignalScore);
+        break;
+      case _SignalFeedFilter.all:
+        if (sortingFieldProvider.sortingField ==
+                SortingFields.setupSignalScore ||
+            sortingFieldProvider.sortingField ==
+                SortingFields.elasticSignalScore) {
+          sortingFieldProvider.setSortingField(SortingFields.signalScore);
+        }
+        break;
+    }
+  }
+
   CheckedPopupMenuItem<String> _sortMenuItem({
     required String selectedSort,
     required String value,
@@ -434,7 +498,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildScannerControls() {
     return Consumer2<TokensProvider, SortingFieldProvider>(
       builder: (context, tokensProvider, sortingFieldProvider, child) {
-        final signalCount = tokensProvider.shortTermBuyCandidates.length;
+        final signalCount = _signalCountForFilter(tokensProvider);
         final updatedAt = _formatSignalsUpdatedAt(
           tokensProvider.shortTermBuyCandidatesUpdatedAt,
         );
@@ -505,13 +569,38 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       _sortMenuItem(
                         selectedSort: sortingFieldProvider.sortingField,
-                        value: SortingFields.tickerPriceChange1h,
-                        label: 'Ticker 1h change',
+                        value: SortingFields.rollingPriceChange5m,
+                        label: 'Rolling 5m',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.rollingPriceChange15m,
+                        label: 'Rolling 15m',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.rollingPriceChange30m,
+                        label: 'Rolling 30m',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.rollingPriceChange1h,
+                        label: 'Rolling 1h',
                       ),
                       _sortMenuItem(
                         selectedSort: sortingFieldProvider.sortingField,
                         value: SortingFields.signalScore,
-                        label: 'Signal score',
+                        label: 'Best signal',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.setupSignalScore,
+                        label: 'Normal signal',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.elasticSignalScore,
+                        label: 'Elastic signal',
                       ),
                       _sortMenuItem(
                         selectedSort: sortingFieldProvider.sortingField,
@@ -538,8 +627,32 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
               if (_feedMode == _TokenFeedMode.signals) ...[
                 const SizedBox(height: KSpacing.xs),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<_SignalFeedFilter>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment<_SignalFeedFilter>(
+                        value: _SignalFeedFilter.all,
+                        label: Text('All'),
+                      ),
+                      ButtonSegment<_SignalFeedFilter>(
+                        value: _SignalFeedFilter.setup,
+                        label: Text('Normal'),
+                      ),
+                      ButtonSegment<_SignalFeedFilter>(
+                        value: _SignalFeedFilter.elastic,
+                        label: Text('Elastic'),
+                      ),
+                    ],
+                    selected: {_signalFilter},
+                    onSelectionChanged: (selection) =>
+                        _setSignalFilter(selection.first, sortingFieldProvider),
+                  ),
+                ),
+                const SizedBox(height: KSpacing.xs),
                 Text(
-                  '$signalCount candidates - updated $updatedAt',
+                  '$signalCount ${_signalFilterLabel(_signalFilter)} - updated $updatedAt',
                   style: KTextStyles.scannerMeta,
                 ),
               ],
@@ -569,6 +682,7 @@ class _HomeScreenState extends State<HomeScreen> {
               historicalKlines: _historicalKlines,
               searchQuery: _searchQuery,
               showSignalsOnly: _feedMode == _TokenFeedMode.signals,
+              signalFilter: _signalFilterValue(_signalFilter),
               onTokenTap: (token) {
                 Navigator.of(context).push(
                   MaterialPageRoute(

@@ -18,6 +18,7 @@ class TokenListViewSection extends StatelessWidget {
   final Function(Token)? onTokenTap;
   final String searchQuery;
   final bool showSignalsOnly;
+  final String signalFilter;
 
   // trade button handlers
   final Function(Token)? onBuyPressed;
@@ -32,6 +33,7 @@ class TokenListViewSection extends StatelessWidget {
     this.onTokenTap,
     this.searchQuery = '',
     this.showSignalsOnly = false,
+    this.signalFilter = 'all',
     this.onBuyPressed,
     this.onQuickBuyPressed,
     this.onSellPressed,
@@ -65,9 +67,26 @@ class TokenListViewSection extends StatelessWidget {
 
     switch (sortField) {
       case SortingFields.tickerPriceChange1h:
+      case SortingFields.rollingPriceChange1h:
         return token.tickerPriceChange1h;
+      case SortingFields.rollingPriceChange5m:
+        return token.hasRollingPriceChange('5m')
+            ? token.rollingPriceChange('5m')
+            : double.negativeInfinity;
+      case SortingFields.rollingPriceChange15m:
+        return token.hasRollingPriceChange('15m')
+            ? token.rollingPriceChange('15m')
+            : double.negativeInfinity;
+      case SortingFields.rollingPriceChange30m:
+        return token.hasRollingPriceChange('30m')
+            ? token.rollingPriceChange('30m')
+            : double.negativeInfinity;
       case SortingFields.signalScore:
         return signal?.score ?? double.negativeInfinity;
+      case SortingFields.setupSignalScore:
+        return signal?.setupScore ?? double.negativeInfinity;
+      case SortingFields.elasticSignalScore:
+        return signal?.elasticScore ?? double.negativeInfinity;
       case SortingFields.volume:
         return token.volume(selectedInterval);
       case SortingFields.relativeVolume5m:
@@ -79,6 +98,23 @@ class TokenListViewSection extends StatelessWidget {
       case SortingFields.priceChange:
       default:
         return token.priceChange(selectedInterval);
+    }
+  }
+
+  bool _matchesSignalFilter(Token token, TokensProvider tokensProvider) {
+    if (!showSignalsOnly) return true;
+
+    final signal = tokensProvider.shortTermBuyCandidatesBySymbol[token.name];
+    if (signal == null) return false;
+
+    switch (signalFilter) {
+      case 'setup':
+        return signal.hasSetupSignal;
+      case 'elastic':
+        return signal.hasElasticSignal;
+      case 'all':
+      default:
+        return true;
     }
   }
 
@@ -175,9 +211,7 @@ class TokenListViewSection extends StatelessWidget {
 
         final tokens =
             rawTokens.where((token) {
-              if (showList &&
-                  showSignalsOnly &&
-                  !signalBySymbol.containsKey(token.name)) {
+              if (showList && !_matchesSignalFilter(token, tokensProvider)) {
                 return false;
               }
 
@@ -220,12 +254,16 @@ class TokenListViewSection extends StatelessWidget {
                       hasSearchQuery
                           ? 'No matches found'
                           : showSignalsOnly
-                          ? 'No signal candidates yet'
+                          ? signalFilter == 'elastic'
+                                ? 'No elastic signals yet'
+                                : signalFilter == 'setup'
+                                ? 'No normal signals yet'
+                                : 'No signal candidates yet'
                           : 'Waiting for market data',
                       subtitle: hasSearchQuery
                           ? 'Try another symbol or switch back to All.'
                           : showSignalsOnly
-                          ? 'The backend scanner will fill this view when a setup clears the score threshold.'
+                          ? 'The backend scanner will fill this view when a setup or elastic signal clears its threshold.'
                           : 'The feed will appear after the backend sends live klines.',
                     )
                   : ListView.builder(
@@ -251,6 +289,10 @@ class TokenListViewSection extends StatelessWidget {
                                 selectedInterval,
                               ),
                               tickerPriceChange1h: token.tickerPriceChange1h,
+                              rollingPriceChanges:
+                                  token.rollingPriceChangePerInterval,
+                              rollingPriceChangeReady:
+                                  token.rollingPriceChangeReadyPerInterval,
                               dailyChange: token.priceChange('1d'),
                               // volume: token.volume(selectedInterval),
                               // netVolume: token.netVolume(selectedInterval),

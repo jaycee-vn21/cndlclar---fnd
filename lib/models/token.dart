@@ -5,6 +5,8 @@ class Token {
   final double marketCap;
   List<Indicator> indicators;
   final double tickerPriceChange1h;
+  final Map<String, double> rollingPriceChangePerInterval;
+  final Map<String, bool> rollingPriceChangeReadyPerInterval;
 
   // Interval-based numeric properties
   final Map<String, double> openPricePerInterval;
@@ -26,6 +28,8 @@ class Token {
     required this.marketCap,
     required this.indicators,
     required this.tickerPriceChange1h,
+    required this.rollingPriceChangePerInterval,
+    required this.rollingPriceChangeReadyPerInterval,
     required this.openPricePerInterval,
     required this.closePricePerInterval,
     required this.highPricePerInterval,
@@ -49,6 +53,8 @@ class Token {
     final lowPricePerInterval = <String, double>{};
     final intervalStartTimes = <String, DateTime>{};
     final intervalClosedPerInterval = <String, bool>{};
+    final rollingPriceChangePerInterval = <String, double>{};
+    final rollingPriceChangeReadyPerInterval = <String, bool>{};
 
     // Empty sparkline placeholders (will be filled in TokensProvider)
     final sparklineData = <String, List<double>>{};
@@ -91,14 +97,33 @@ class Token {
       } else if (key.startsWith('isIntervalClosed')) {
         final interval = key.replaceFirst('isIntervalClosed', '');
         intervalClosedPerInterval[interval] = value == true;
+      } else if (key.startsWith('rollingPriceChangeReady')) {
+        final interval = key.replaceFirst('rollingPriceChangeReady', '');
+        rollingPriceChangeReadyPerInterval[interval] = value == true;
+      } else if (key.startsWith('rollingPriceChange')) {
+        final interval = key.replaceFirst('rollingPriceChange', '');
+        if (value is num) {
+          rollingPriceChangePerInterval[interval] = value.toDouble();
+        }
       }
     });
+
+    final tickerPriceChange1h =
+        (map['tickerPriceChange1h'] ?? map['rollingPriceChange1h'] ?? 0)
+            .toDouble();
+    rollingPriceChangePerInterval.putIfAbsent('1h', () => tickerPriceChange1h);
+    rollingPriceChangeReadyPerInterval.putIfAbsent(
+      '1h',
+      () => map['rollingPriceChangeReady1h'] != false,
+    );
 
     return Token(
       name: map['tokenName'] ?? '',
       marketCap: (map['marketCap'] ?? 0).toDouble(),
       indicators: [], // will be set in provider
-      tickerPriceChange1h: (map['tickerPriceChange1h'] ?? 0).toDouble(),
+      tickerPriceChange1h: tickerPriceChange1h,
+      rollingPriceChangePerInterval: rollingPriceChangePerInterval,
+      rollingPriceChangeReadyPerInterval: rollingPriceChangeReadyPerInterval,
       openPricePerInterval: openPricePerInterval,
       closePricePerInterval: closePricePerInterval,
       highPricePerInterval: highPricePerInterval,
@@ -124,6 +149,12 @@ class Token {
       priceChangePercentPerInterval[interval] ?? 0;
   double volume(String interval) => volumePerInterval[interval] ?? 0;
   double netVolume(String interval) => netVolumePerInterval[interval] ?? 0;
+  double rollingPriceChange(String interval) =>
+      rollingPriceChangePerInterval[interval] ??
+      (interval == '1h' ? tickerPriceChange1h : 0);
+  bool hasRollingPriceChange(String interval) =>
+      rollingPriceChangeReadyPerInterval[interval] ??
+      rollingPriceChangePerInterval.containsKey(interval);
   DateTime? startTime(String interval) => intervalStartTimes[interval];
   bool isIntervalClosed(String interval) =>
       intervalClosedPerInterval[interval] ?? false;

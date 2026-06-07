@@ -18,6 +18,8 @@ class TokenCardWidget extends StatelessWidget {
   final double selectedIntervalChange;
   final double dailyChange;
   final double? tickerPriceChange1h;
+  final Map<String, double>? rollingPriceChanges;
+  final Map<String, bool>? rollingPriceChangeReady;
   final double? volume;
   final double? netVolume;
   final double? marketCap;
@@ -41,6 +43,8 @@ class TokenCardWidget extends StatelessWidget {
     required this.dailyChange,
 
     this.tickerPriceChange1h,
+    this.rollingPriceChanges,
+    this.rollingPriceChangeReady,
     this.volume,
     this.netVolume,
     this.marketCap,
@@ -80,14 +84,40 @@ class TokenCardWidget extends StatelessWidget {
     return "${value >= 0 ? '+' : ''}${value.toStringAsFixed(2)}%";
   }
 
-  Color _signalColor(double score) {
-    if (score >= 55) return KColors.accentPositive;
-    if (score >= 35) return KColors.accentWarning;
-    return KColors.textSecondary;
+  String _formatSignedLargeMoney(double? value) {
+    if (value == null) return 'n/a';
+    final prefix = value >= 0 ? '+' : '-';
+    return '$prefix\$${_formatLargeNumber(value.abs())}';
   }
 
-  Widget _buildSignalBadge(ShortTermBuyCandidate candidate) {
-    final color = _signalColor(candidate.score);
+  double? _rollingValue(String interval) {
+    if (rollingPriceChangeReady?[interval] == false) return null;
+    if (rollingPriceChanges?.containsKey(interval) != true) {
+      return interval == '1h' ? tickerPriceChange1h : null;
+    }
+    return rollingPriceChanges![interval] ??
+        (interval == '1h' ? tickerPriceChange1h : null);
+  }
+
+  Color _percentColor(double? value) {
+    if (value == null) return KColors.textSecondary;
+    return value >= 0 ? KColors.accentPositive : KColors.accentNegative;
+  }
+
+  Color _signalTrackColor(String type) {
+    return type == 'elastic' ? KColors.signalElastic : KColors.signalSetup;
+  }
+
+  String _signalTrackLabel(String type) {
+    return type == 'elastic' ? 'Elastic' : 'Normal';
+  }
+
+  Widget _buildSignalBadge({
+    required ShortTermBuyCandidate candidate,
+    required ShortTermSignalTrack track,
+  }) {
+    final color = _signalTrackColor(track.type);
+    final rankLabel = track.rank == null ? '' : '#${track.rank} ';
 
     return Container(
       height: 28,
@@ -103,11 +133,26 @@ class TokenCardWidget extends StatelessWidget {
           Icon(KIcons.signal, color: color, size: 14),
           const SizedBox(width: KSpacing.xs),
           Text(
-            '#${candidate.rank} ${candidate.score.toStringAsFixed(0)}',
+            '$rankLabel${_signalTrackLabel(track.type)} ${track.score.toStringAsFixed(0)}',
             style: KTextStyles.signalScore.copyWith(color: color),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSignalBadges(ShortTermBuyCandidate candidate) {
+    final activeSignals = candidate.activeSignals;
+    final tracks = activeSignals.isNotEmpty
+        ? activeSignals
+        : [candidate.primarySignal];
+
+    return Wrap(
+      spacing: KSpacing.xs,
+      runSpacing: KSpacing.xs,
+      children: tracks
+          .map((track) => _buildSignalBadge(candidate: candidate, track: track))
+          .toList(growable: false),
     );
   }
 
@@ -143,7 +188,11 @@ class TokenCardWidget extends StatelessWidget {
 
   Widget _buildSignalDetails(ShortTermBuyCandidate candidate) {
     final fiveMinuteChange = candidate.metric('priceChange5m');
+    final rolling5m = candidate.metric('rollingPriceChange5m');
+    final rolling15m = candidate.metric('rollingPriceChange15m');
+    final rolling30m = candidate.metric('rollingPriceChange30m');
     final relativeVolume = candidate.metric('relativeVolume5m');
+    final netVolume5m = candidate.metric('netVolume5m');
     final rsi3 = candidate.metric('rsi3in5m');
     final rsi14 = candidate.metric('rsi14in5m');
     final rsi50 = candidate.metric('rsi50in5m');
@@ -151,7 +200,9 @@ class TokenCardWidget extends StatelessWidget {
     final sarTrendUp = candidate.metric('sarTrendUp5m') == 1;
     final ema7Distance = candidate.metric('closeMinusEma7in5m');
     final upperRoom = candidate.metric('bollUpperRoom5m');
-    final topReasons = candidate.reasons.take(5).toList(growable: false);
+    final primarySignal = candidate.primarySignal;
+    final reasonColor = _signalTrackColor(primarySignal.type);
+    final topReasons = primarySignal.reasons.take(5).toList(growable: false);
 
     return Container(
       width: double.infinity,
@@ -168,11 +219,21 @@ class TokenCardWidget extends StatelessWidget {
           Row(
             children: [
               _buildSignalMetric(
-                '5m',
-                _formatOptionalPercent(fiveMinuteChange),
-                color: (fiveMinuteChange ?? 0) >= 0
-                    ? KColors.accentPositive
-                    : KColors.accentNegative,
+                'Roll 5m',
+                _formatOptionalPercent(rolling5m),
+                color: _percentColor(rolling5m),
+              ),
+              const SizedBox(width: KSpacing.sm),
+              _buildSignalMetric(
+                'Roll 15m',
+                _formatOptionalPercent(rolling15m),
+                color: _percentColor(rolling15m),
+              ),
+              const SizedBox(width: KSpacing.sm),
+              _buildSignalMetric(
+                'Roll 30m',
+                _formatOptionalPercent(rolling30m),
+                color: _percentColor(rolling30m),
               ),
               const SizedBox(width: KSpacing.sm),
               _buildSignalMetric(
@@ -181,9 +242,25 @@ class TokenCardWidget extends StatelessWidget {
                     ? 'n/a'
                     : '${relativeVolume.toStringAsFixed(1)}x',
               ),
+            ],
+          ),
+          const SizedBox(height: KSpacing.sm),
+          Row(
+            children: [
+              _buildSignalMetric(
+                'Candle 5m',
+                _formatOptionalPercent(fiveMinuteChange),
+                color: _percentColor(fiveMinuteChange),
+              ),
               const SizedBox(width: KSpacing.sm),
               _buildSignalMetric(
-                'RSI 3',
+                'Net Vol',
+                _formatSignedLargeMoney(netVolume5m),
+                color: _percentColor(netVolume5m),
+              ),
+              const SizedBox(width: KSpacing.sm),
+              _buildSignalMetric(
+                'RSI(3)',
                 rsi3 == null ? 'n/a' : rsi3.toStringAsFixed(0),
                 color: (rsi3 ?? 0) >= 50
                     ? KColors.accentPositive
@@ -191,7 +268,7 @@ class TokenCardWidget extends StatelessWidget {
               ),
               const SizedBox(width: KSpacing.sm),
               _buildSignalMetric(
-                'RSI 14',
+                'RSI(14)',
                 rsi14 == null ? 'n/a' : rsi14.toStringAsFixed(0),
                 color: (rsi14 ?? 0) >= 50
                     ? KColors.accentPositive
@@ -203,7 +280,7 @@ class TokenCardWidget extends StatelessWidget {
           Row(
             children: [
               _buildSignalMetric(
-                'RSI 50',
+                'RSI(50)',
                 rsi50 == null ? 'n/a' : rsi50.toStringAsFixed(0),
                 color: (rsi50 ?? 0) >= 50
                     ? KColors.accentPositive
@@ -238,6 +315,11 @@ class TokenCardWidget extends StatelessWidget {
           ),
           if (topReasons.isNotEmpty) ...[
             const SizedBox(height: KSpacing.md),
+            Text(
+              '${_signalTrackLabel(primarySignal.type)} reasons',
+              style: KTextStyles.scannerMeta.copyWith(color: reasonColor),
+            ),
+            const SizedBox(height: KSpacing.sm),
             ...topReasons.map((reason) {
               final isNegative = reason.trimLeft().startsWith('-');
               return Padding(
@@ -302,6 +384,41 @@ class TokenCardWidget extends StatelessWidget {
     );
   }
 
+  Widget _buildRollingMomentumRow() {
+    const intervals = ['5m', '15m', '30m', '1h'];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: KSpacing.xs),
+      child: Wrap(
+        spacing: KSpacing.sm,
+        runSpacing: KSpacing.xs,
+        children: intervals
+            .map((interval) {
+              final value = _rollingValue(interval);
+
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Rolling $interval',
+                    style: KTextStyles.tokenMetricLabel,
+                  ),
+                  const SizedBox(width: KSpacing.xs),
+                  Text(
+                    _formatOptionalPercent(value),
+                    style: KTextStyles.tokenMetricValue.copyWith(
+                      color: _percentColor(value),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedInterval = Provider.of<IntervalProvider>(
@@ -342,10 +459,6 @@ class TokenCardWidget extends StatelessWidget {
                       style: KTextStyles.tokenName,
                     ),
                   ),
-                  if (signalCandidate != null) ...[
-                    const SizedBox(width: KSpacing.sm),
-                    _buildSignalBadge(signalCandidate!),
-                  ],
                   const SizedBox(width: KSpacing.sm),
                   Text(
                     "\$${_formatPrice(currentPrice)}",
@@ -355,6 +468,10 @@ class TokenCardWidget extends StatelessWidget {
                   ),
                 ],
               ),
+              if (signalCandidate != null) ...[
+                const SizedBox(height: KSpacing.sm),
+                _buildSignalBadges(signalCandidate!),
+              ],
               const SizedBox(height: KSpacing.sm),
 
               if (showSignalDetails && signalCandidate != null)
@@ -380,19 +497,12 @@ class TokenCardWidget extends StatelessWidget {
               const SizedBox(height: KSpacing.sm),
 
               // --- Metrics ---
+              _buildRollingMomentumRow(),
               if (selectedInterval != '1d')
                 _buildMetricRow(
                   "$selectedInterval Candle Change",
                   "${selectedIntervalChange >= 0 ? '+' : ''}${selectedIntervalChange.toStringAsFixed(2)}%",
                   valueColor: selectedIntervalChange >= 0
-                      ? KColors.accentPositive
-                      : KColors.accentNegative,
-                ),
-              if (tickerPriceChange1h != null)
-                _buildMetricRow(
-                  "Ticker 1h Change",
-                  "${tickerPriceChange1h! >= 0 ? '+' : ''}${tickerPriceChange1h!.toStringAsFixed(2)}%",
-                  valueColor: tickerPriceChange1h! >= 0
                       ? KColors.accentPositive
                       : KColors.accentNegative,
                 ),

@@ -12,6 +12,14 @@ void main() {
       'lowPrice5m': 95.0,
       'closePrice5m': 105.0,
       'volumeInMoney5m': 1234.0,
+      'rollingPriceChange5m': 0.7,
+      'rollingPriceChangeReady5m': true,
+      'rollingPriceChange15m': 1.4,
+      'rollingPriceChangeReady15m': true,
+      'rollingPriceChange30m': -0.2,
+      'rollingPriceChangeReady30m': true,
+      'rollingPriceChange1h': 3.5,
+      'rollingPriceChangeReady1h': true,
       'intervalStartTime5m': '2026-06-01T10:00:00.000Z',
       'isIntervalClosed5m': false,
     });
@@ -22,6 +30,11 @@ void main() {
     expect(token.lowPrice('5m'), 95);
     expect(token.closePrice('5m'), 105);
     expect(token.volume('5m'), 1234);
+    expect(token.rollingPriceChange('5m'), 0.7);
+    expect(token.rollingPriceChange('15m'), 1.4);
+    expect(token.rollingPriceChange('30m'), -0.2);
+    expect(token.rollingPriceChange('1h'), 3.5);
+    expect(token.hasRollingPriceChange('5m'), isTrue);
     expect(token.startTime('5m'), DateTime.utc(2026, 6, 1, 10));
     expect(token.isIntervalClosed('5m'), isFalse);
   });
@@ -48,10 +61,48 @@ void main() {
     final candidate = ShortTermBuyCandidate.fromMap({
       'rank': 1,
       'tokenName': 'BTCUSDT',
-      'score': 57,
-      'reasons': ['+8 5m volume >= 100k', '-6 spread too wide'],
+      'score': 68,
+      'primarySignalType': 'elastic',
+      'signalTypes': ['setup', 'elastic'],
+      'setupScore': 57,
+      'setupActive': true,
+      'setupRank': 4,
+      'setupReasons': ['+8 5m volume >= 100k', '-6 spread too wide'],
+      'elasticScore': 68,
+      'elasticActive': true,
+      'elasticRank': 1,
+      'elasticReasons': [
+        '+18 elastic rolling 5m expansion',
+        '+12 positive 5m net buy volume',
+      ],
+      'reasons': [
+        '+18 elastic rolling 5m expansion',
+        '+12 positive 5m net buy volume',
+      ],
+      'signals': {
+        'setup': {
+          'type': 'setup',
+          'score': 57,
+          'isActive': true,
+          'rank': 4,
+          'reasons': ['+8 5m volume >= 100k', '-6 spread too wide'],
+        },
+        'elastic': {
+          'type': 'elastic',
+          'score': 68,
+          'isActive': true,
+          'rank': 1,
+          'reasons': [
+            '+18 elastic rolling 5m expansion',
+            '+12 positive 5m net buy volume',
+          ],
+        },
+      },
       'metrics': {
         'priceChange5m': 1.25,
+        'rollingPriceChange5m': 0.9,
+        'rollingPriceChange15m': 2.1,
+        'rollingPriceChange30m': 3.2,
         'relativeVolume5m': '3.4',
         'rsi14in5m': null,
       },
@@ -59,9 +110,24 @@ void main() {
 
     expect(candidate.rank, 1);
     expect(candidate.tokenName, 'BTCUSDT');
-    expect(candidate.score, 57);
+    expect(candidate.score, 68);
+    expect(candidate.primarySignalType, 'elastic');
+    expect(candidate.setupScore, 57);
+    expect(candidate.elasticScore, 68);
+    expect(candidate.setupRank, 4);
+    expect(candidate.elasticRank, 1);
+    expect(candidate.hasSetupSignal, isTrue);
+    expect(candidate.hasElasticSignal, isTrue);
+    expect(candidate.primarySignal.type, 'elastic');
+    expect(candidate.activeSignals.map((signal) => signal.type), [
+      'elastic',
+      'setup',
+    ]);
     expect(candidate.reasons, hasLength(2));
     expect(candidate.metric('priceChange5m'), 1.25);
+    expect(candidate.metric('rollingPriceChange5m'), 0.9);
+    expect(candidate.metric('rollingPriceChange15m'), 2.1);
+    expect(candidate.metric('rollingPriceChange30m'), 3.2);
     expect(candidate.metric('relativeVolume5m'), 3.4);
     expect(candidate.metric('rsi14in5m'), isNull);
   });
