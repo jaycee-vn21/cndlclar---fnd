@@ -446,7 +446,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
         final showBoll = widget.showBoll && visibility.showBoll;
         final showSar = widget.showSar && visibility.showSar;
         final showRsi = widget.showRsi && visibility.showRsi;
-        final chartScale = widget.allowPanAndZoom ? visibility.chartScale : 1.0;
+        final chartScale = visibility.chartScale;
         final rsiSnapshot = _rsiSnapshotFor(
           _activeIndex ?? (_sorted.isEmpty ? null : _sorted.length - 1),
         );
