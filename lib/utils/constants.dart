@@ -28,6 +28,7 @@ class KColors {
 
   static const tradingBuy = accentPositive;
   static const tradingQuickBuy = activeIcon;
+  static const tradingAutoClose = accentWarning;
   static const tradingSell = accentNegative;
 
   static const tradingButtonText = textPrimary;
@@ -307,6 +308,15 @@ class KGradients {
     colors: [
       KColors.tradingQuickBuy.withValues(alpha: 0.9),
       KColors.tradingQuickBuy.withValues(alpha: 0.6),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static final tradingAutoClose = LinearGradient(
+    colors: [
+      KColors.tradingAutoClose.withValues(alpha: 0.9),
+      KColors.tradingAutoClose.withValues(alpha: 0.6),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,

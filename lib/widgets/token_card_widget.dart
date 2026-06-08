@@ -9,7 +9,6 @@ import 'package:cndlclar/widgets/indicator_row_widget.dart';
 // import 'package:cndlclar/widgets/sparkline_widget.dart';
 import 'package:cndlclar/widgets/candlestick_chart_widget.dart';
 import 'package:cndlclar/widgets/trading_buttons_row_widget.dart';
-import 'package:cndlclar/utils/config.dart';
 import 'package:cndlclar/utils/constants.dart';
 
 class TokenCardWidget extends StatelessWidget {
@@ -20,6 +19,8 @@ class TokenCardWidget extends StatelessWidget {
   final double? tickerPriceChange1h;
   final Map<String, double>? rollingPriceChanges;
   final Map<String, bool>? rollingPriceChangeReady;
+  final Map<String, int>? rollingPriceChangeRanks;
+  final bool allowChartPanAndZoom;
   final double? volume;
   final double? netVolume;
   final double? marketCap;
@@ -31,6 +32,8 @@ class TokenCardWidget extends StatelessWidget {
   final bool showSignalDetails;
 
   // trade button presses
+  final VoidCallback onEma7LimitOcoPressed;
+  final VoidCallback onMarketAutoClosePressed;
   final VoidCallback onBuyPressed;
   final VoidCallback onQuickBuyPressed;
   final VoidCallback onSellPressed;
@@ -45,6 +48,8 @@ class TokenCardWidget extends StatelessWidget {
     this.tickerPriceChange1h,
     this.rollingPriceChanges,
     this.rollingPriceChangeReady,
+    this.rollingPriceChangeRanks,
+    this.allowChartPanAndZoom = true,
     this.volume,
     this.netVolume,
     this.marketCap,
@@ -55,6 +60,8 @@ class TokenCardWidget extends StatelessWidget {
     this.showSignalDetails = false,
 
     // trade button presses
+    required this.onEma7LimitOcoPressed,
+    required this.onMarketAutoClosePressed,
     required this.onBuyPressed,
     required this.onQuickBuyPressed,
     required this.onSellPressed,
@@ -99,9 +106,41 @@ class TokenCardWidget extends StatelessWidget {
         (interval == '1h' ? tickerPriceChange1h : null);
   }
 
+  int? _rollingRank(String interval) => rollingPriceChangeRanks?[interval];
+
   Color _percentColor(double? value) {
     if (value == null) return KColors.textSecondary;
     return value >= 0 ? KColors.accentPositive : KColors.accentNegative;
+  }
+
+  Widget _buildRollingRankBadge({required String interval, double? value}) {
+    final rank = _rollingRank(interval);
+    if (rank == null || rank <= 0 || value == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isTopRank = rank <= 3;
+    final color = isTopRank ? _percentColor(value) : KColors.textSecondary;
+
+    return Container(
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isTopRank ? 0.16 : 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Center(
+        child: Text(
+          '#$rank',
+          style: KTextStyles.tokenMetricLabel.copyWith(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
   }
 
   Color _signalTrackColor(String type) {
@@ -411,6 +450,8 @@ class TokenCardWidget extends StatelessWidget {
                       fontSize: 12,
                     ),
                   ),
+                  const SizedBox(width: KSpacing.xxs),
+                  _buildRollingRankBadge(interval: interval, value: value),
                 ],
               );
             })
@@ -424,9 +465,6 @@ class TokenCardWidget extends StatelessWidget {
     final selectedInterval = Provider.of<IntervalProvider>(
       context,
     ).selectedInterval;
-
-    // Temporary dummy device token
-    const String deviceToken = 'abc123-xyz789-2025';
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(KSizes.tokenCardBorderRadius),
@@ -491,6 +529,7 @@ class TokenCardWidget extends StatelessWidget {
                       symbol: tokenName,
                       candles:
                           historicalKlines![tokenName]?[selectedInterval] ?? [],
+                      allowPanAndZoom: allowChartPanAndZoom,
                     ),
                   ),
                 ),
@@ -528,13 +567,14 @@ class TokenCardWidget extends StatelessWidget {
                   "$selectedInterval Candle NetVolumeUSDT",
                   '\$${_formatLargeNumber(netVolume!)}',
                 ),
-              if (deviceToken == AppConfig.deviceToken)
-                TradingButtonsRowWidget(
-                  tokenName: tokenName,
-                  onBuy: onBuyPressed,
-                  onQuickBuy: onQuickBuyPressed,
-                  onSell: onSellPressed,
-                ),
+              TradingButtonsRowWidget(
+                tokenName: tokenName,
+                onEma7LimitOco: onEma7LimitOcoPressed,
+                onMarketAutoClose: onMarketAutoClosePressed,
+                onBuy: onBuyPressed,
+                onQuickBuy: onQuickBuyPressed,
+                onSell: onSellPressed,
+              ),
             ],
           ),
         ),

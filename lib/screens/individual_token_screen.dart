@@ -7,6 +7,8 @@ import 'package:cndlclar/utils/constants.dart';
 class IndividualTokenScreen extends StatelessWidget {
   final Token token;
   final Map<String, Map<String, List<KlineData>>>? historicalKlines;
+  final VoidCallback onEma7LimitOcoPressed;
+  final VoidCallback onMarketAutoClosePressed;
   final VoidCallback onBuyPressed;
   final VoidCallback onQuickBuyPressed;
   final VoidCallback onSellPressed;
@@ -15,6 +17,8 @@ class IndividualTokenScreen extends StatelessWidget {
     super.key,
     required this.token,
     this.historicalKlines,
+    required this.onEma7LimitOcoPressed,
+    required this.onMarketAutoClosePressed,
     required this.onBuyPressed,
     required this.onQuickBuyPressed,
     required this.onSellPressed,
@@ -34,6 +38,8 @@ class IndividualTokenScreen extends StatelessWidget {
         showList: false,
         singleToken: token,
         historicalKlines: historicalKlines,
+        onEma7LimitOcoPressed: (_) => onEma7LimitOcoPressed(),
+        onMarketAutoClosePressed: (_) => onMarketAutoClosePressed(),
         onBuyPressed: (_) => onBuyPressed(),
         onQuickBuyPressed: (_) => onQuickBuyPressed(),
         onSellPressed: (_) => onSellPressed(),

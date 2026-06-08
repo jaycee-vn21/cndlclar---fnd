@@ -3,6 +3,8 @@ import 'package:cndlclar/utils/constants.dart';
 
 class TradingButtonsRowWidget extends StatefulWidget {
   final String tokenName;
+  final VoidCallback onEma7LimitOco;
+  final VoidCallback onMarketAutoClose;
   final VoidCallback onQuickBuy;
   final VoidCallback onBuy;
   final VoidCallback onSell;
@@ -10,6 +12,8 @@ class TradingButtonsRowWidget extends StatefulWidget {
   const TradingButtonsRowWidget({
     super.key,
     required this.tokenName,
+    required this.onEma7LimitOco,
+    required this.onMarketAutoClose,
     required this.onQuickBuy,
     required this.onBuy,
     required this.onSell,
@@ -26,25 +30,48 @@ class _TradingButtonsRowWidgetState extends State<TradingButtonsRowWidget>
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: KSpacing.sm),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _AnimatedTradeButton(
-            label: "Buy + OCO",
-            gradient: KGradients.tradingBuy,
-            onPressed: widget.onBuy,
-          ),
-          _AnimatedTradeButton(
-            label: "Quick Buy",
-            gradient: KGradients.tradingQuickBuy,
-            onPressed: widget.onQuickBuy,
-          ),
-          _AnimatedTradeButton(
-            label: "Sell",
-            gradient: KGradients.tradingSell,
-            onPressed: widget.onSell,
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final buttonWidth = (constraints.maxWidth - KSpacing.sm) / 2;
+
+          return Wrap(
+            spacing: KSpacing.sm,
+            runSpacing: KSpacing.sm,
+            alignment: WrapAlignment.spaceEvenly,
+            children: [
+              _AnimatedTradeButton(
+                label: "Buy + OCO",
+                width: buttonWidth,
+                gradient: KGradients.tradingBuy,
+                onPressed: widget.onBuy,
+              ),
+              _AnimatedTradeButton(
+                label: "EMA7 + OCO",
+                width: buttonWidth,
+                gradient: KGradients.tradingBuy,
+                onPressed: widget.onEma7LimitOco,
+              ),
+              _AnimatedTradeButton(
+                label: "Quick Buy",
+                width: buttonWidth,
+                gradient: KGradients.tradingQuickBuy,
+                onPressed: widget.onQuickBuy,
+              ),
+              _AnimatedTradeButton(
+                label: "5m Auto Sell",
+                width: buttonWidth,
+                gradient: KGradients.tradingAutoClose,
+                onPressed: widget.onMarketAutoClose,
+              ),
+              _AnimatedTradeButton(
+                label: "Sell",
+                width: buttonWidth,
+                gradient: KGradients.tradingSell,
+                onPressed: widget.onSell,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -52,11 +79,13 @@ class _TradingButtonsRowWidgetState extends State<TradingButtonsRowWidget>
 
 class _AnimatedTradeButton extends StatefulWidget {
   final String label;
+  final double width;
   final Gradient gradient;
   final VoidCallback onPressed;
 
   const _AnimatedTradeButton({
     required this.label,
+    required this.width,
     required this.gradient,
     required this.onPressed,
   });
@@ -83,7 +112,7 @@ class _AnimatedTradeButtonState extends State<_AnimatedTradeButton> {
         onTapCancel: () => setState(() => _pressed = false),
         child: AnimatedContainer(
           duration: KDurations.tradingGlowAnimation,
-          width: KSizes.tradingButtonMinWidth,
+          width: widget.width,
           height: KSizes.tradingButtonHeight,
           decoration: BoxDecoration(
             gradient: widget.gradient,
@@ -93,7 +122,12 @@ class _AnimatedTradeButtonState extends State<_AnimatedTradeButton> {
             boxShadow: _pressed ? [] : [KShadows.tradingButton],
           ),
           child: Center(
-            child: Text(widget.label, style: KTextStyles.tradingButtonLabel),
+            child: Text(
+              widget.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: KTextStyles.tradingButtonLabel,
+            ),
           ),
         ),
       ),

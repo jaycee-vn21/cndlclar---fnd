@@ -55,11 +55,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleTrade({
     required String action, // "buy" or "sell"
     required String symbol,
+    String? actionLabel,
     int? requestedLeverage,
     double? priceToBuy,
     double? stopLossPercent,
     double? takeProfitPercent,
     double? baseAmount,
+    double? autoSellProfitPercent,
+    String? interval,
   }) async {
     final result = await _tradeService.executeTrade(
       action: action,
@@ -69,16 +72,21 @@ class _HomeScreenState extends State<HomeScreen> {
       stopLossPercent: stopLossPercent,
       takeProfitPercent: takeProfitPercent,
       baseAmount: baseAmount,
+      autoSellProfitPercent: autoSellProfitPercent,
+      interval: interval,
     );
 
     if (result['success'] == true) {
       final data = result['data'];
+      final isAccepted = data['status']?.toString() == 'accepted';
+      final statusLabel = isAccepted ? 'Accepted' : 'Successful';
+      final displayAction = actionLabel ?? action.toUpperCase();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${action.toUpperCase()} Successful ✅: ${data['data']['message'] ?? ''}',
+            '$displayAction $statusLabel ✅: ${data['data']['message'] ?? ''}',
             style: TextStyle(color: KColors.textPrimary),
           ),
           backgroundColor: KColors.tradeSuccessfulSnackbar,
@@ -118,6 +126,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _sellPressed(Token token) {
     _handleTrade(action: 'sell', symbol: token.name);
+  }
+
+  void _ema7LimitOcoPressed(Token token) {
+    _handleTrade(
+      action: 'ema7-limit-buy-oco',
+      actionLabel: 'EMA7 Limit + OCO',
+      symbol: token.name,
+      requestedLeverage: AppConfig.requestedLaverage,
+      stopLossPercent: 1.5,
+      takeProfitPercent: 2,
+    );
+  }
+
+  void _marketAutoClosePressed(Token token) {
+    _handleTrade(
+      action: 'market-buy-auto-close',
+      actionLabel: '5m Auto Sell',
+      symbol: token.name,
+      requestedLeverage: AppConfig.requestedLaverage,
+      stopLossPercent: 1.5,
+      takeProfitPercent: 2,
+      autoSellProfitPercent: 0.45,
+      interval: '5m',
+    );
   }
 
   void _handleMarketDataChanged() {
@@ -689,6 +721,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (context) => IndividualTokenScreen(
                       token: token,
                       historicalKlines: _historicalKlines,
+                      onEma7LimitOcoPressed: () => _ema7LimitOcoPressed(token),
+                      onMarketAutoClosePressed: () =>
+                          _marketAutoClosePressed(token),
                       onBuyPressed: () => _buyPressed(token),
                       onQuickBuyPressed: () => _quickBuyPressed(token),
                       onSellPressed: () => _sellPressed(token),
@@ -696,6 +731,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 );
               },
+              onEma7LimitOcoPressed: _ema7LimitOcoPressed,
+              onMarketAutoClosePressed: _marketAutoClosePressed,
               onBuyPressed: _buyPressed,
               onQuickBuyPressed: _quickBuyPressed,
               onSellPressed: _sellPressed,

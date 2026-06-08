@@ -65,6 +65,8 @@ class CandlestickChartWidget extends StatefulWidget {
   final bool showBoll;
   final int bollPeriod;
   final double bollDeviations;
+  final bool isInteractive;
+  final bool allowPanAndZoom;
 
   const CandlestickChartWidget({
     super.key,
@@ -76,6 +78,8 @@ class CandlestickChartWidget extends StatefulWidget {
     this.showBoll = true,
     this.bollPeriod = 7,
     this.bollDeviations = 2,
+    this.isInteractive = true,
+    this.allowPanAndZoom = true,
   });
 
   @override
@@ -115,6 +119,18 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
   @override
   void didUpdateWidget(covariant CandlestickChartWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!widget.isInteractive && oldWidget.isInteractive) {
+      _isLongPressActive = false;
+      _activeIndex = null;
+      _activeGlobalPos = null;
+    }
+
+    if (!widget.allowPanAndZoom && oldWidget.allowPanAndZoom) {
+      _lastFocalPoint = null;
+      _hasCustomPanOffset = false;
+      _panOffset = Offset.zero;
+    }
+
     if (widget.candles != oldWidget.candles) {
       final wasInspecting = _isLongPressActive && _activeGlobalPos != null;
       final previousIndex = _activeIndex;
@@ -430,7 +446,7 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
         final showBoll = widget.showBoll && visibility.showBoll;
         final showSar = widget.showSar && visibility.showSar;
         final showRsi = widget.showRsi && visibility.showRsi;
-        final chartScale = visibility.chartScale;
+        final chartScale = widget.allowPanAndZoom ? visibility.chartScale : 1.0;
         final rsiSnapshot = _rsiSnapshotFor(
           _activeIndex ?? (_sorted.isEmpty ? null : _sorted.length - 1),
         );
@@ -441,50 +457,70 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
             final candleWidth = _candleWidth(chartWidth);
 
             return Listener(
-              onPointerMove: (event) => _updatePointerMove(event.position),
-              onPointerUp: (_) => _clearActive(),
-              onPointerCancel: (_) => _clearActive(),
+              onPointerMove: widget.isInteractive
+                  ? (event) => _updatePointerMove(event.position)
+                  : null,
+              onPointerUp: widget.isInteractive ? (_) => _clearActive() : null,
+              onPointerCancel: widget.isInteractive
+                  ? (_) => _clearActive()
+                  : null,
               child: Stack(
                 children: [
                   GestureDetector(
-                    onScaleStart: (details) {
-                      _lastFocalPoint = details.focalPoint;
-                      _baseScale = chartScale;
-                    },
-                    onScaleUpdate: (details) {
-                      final nextScale = (_baseScale * details.scale).clamp(
-                        ChartIndicatorVisibilityProvider.minChartScale,
-                        ChartIndicatorVisibilityProvider.maxChartScale,
-                      );
-                      visibility.setChartScale(nextScale.toDouble());
+                    onScaleStart: widget.allowPanAndZoom
+                        ? (details) {
+                            _lastFocalPoint = details.focalPoint;
+                            _baseScale = chartScale;
+                          }
+                        : null,
+                    onScaleUpdate: widget.allowPanAndZoom
+                        ? (details) {
+                            final nextScale = (_baseScale * details.scale)
+                                .clamp(
+                                  ChartIndicatorVisibilityProvider
+                                      .minChartScale,
+                                  ChartIndicatorVisibilityProvider
+                                      .maxChartScale,
+                                );
+                            visibility.setChartScale(nextScale.toDouble());
 
-                      setState(() {
-                        final delta =
-                            details.focalPoint -
-                            (_lastFocalPoint ?? details.focalPoint);
-                        _hasCustomPanOffset = true;
-                        _panOffset += delta;
-                        final totalWidth =
-                            _sorted.length * candleWidth * nextScale;
-                        double minX = chartWidth - totalWidth;
-                        double maxX = 0;
+                            setState(() {
+                              final delta =
+                                  details.focalPoint -
+                                  (_lastFocalPoint ?? details.focalPoint);
+                              _hasCustomPanOffset = true;
+                              _panOffset += delta;
+                              final totalWidth =
+                                  _sorted.length * candleWidth * nextScale;
+                              double minX = chartWidth - totalWidth;
+                              double maxX = 0;
 
-                        // prevent clamp crash by fixing inverted values
-                        if (minX > maxX) {
-                          final tmp = minX;
-                          minX = maxX;
-                          maxX = tmp;
-                        }
+                              // prevent clamp crash by fixing inverted values
+                              if (minX > maxX) {
+                                final tmp = minX;
+                                minX = maxX;
+                                maxX = tmp;
+                              }
 
-                        _panOffset = Offset(_panOffset.dx.clamp(minX, maxX), 0);
+                              _panOffset = Offset(
+                                _panOffset.dx.clamp(minX, maxX),
+                                0,
+                              );
 
-                        _lastFocalPoint = details.focalPoint;
-                      });
-                    },
-                    onLongPressStart: (details) =>
-                        _activateCrosshair(details.globalPosition),
-                    onLongPressEnd: (details) => _clearActive(),
-                    onLongPressCancel: _clearActive,
+                              _lastFocalPoint = details.focalPoint;
+                            });
+                          }
+                        : null,
+                    onLongPressStart: widget.isInteractive
+                        ? (details) =>
+                              _activateCrosshair(details.globalPosition)
+                        : null,
+                    onLongPressEnd: widget.isInteractive
+                        ? (details) => _clearActive()
+                        : null,
+                    onLongPressCancel: widget.isInteractive
+                        ? _clearActive
+                        : null,
                     child: RepaintBoundary(
                       child: CustomPaint(
                         size: Size.infinite,
@@ -523,37 +559,49 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
                           label: 'EMA3',
                           color: _ema3Color,
                           isActive: showEma3,
-                          onTap: visibility.toggleEma3,
+                          onTap: widget.isInteractive
+                              ? visibility.toggleEma3
+                              : null,
                         ),
                         _IndicatorLegendItem(
                           label: 'EMA7',
                           color: _ema7Color,
                           isActive: showEma7,
-                          onTap: visibility.toggleEma7,
+                          onTap: widget.isInteractive
+                              ? visibility.toggleEma7
+                              : null,
                         ),
                         _IndicatorLegendItem(
                           label: 'EMA9',
                           color: _ema9Color,
                           isActive: showEma9,
-                          onTap: visibility.toggleEma9,
+                          onTap: widget.isInteractive
+                              ? visibility.toggleEma9
+                              : null,
                         ),
                         _IndicatorLegendItem(
                           label: 'EMA21',
                           color: _ema21Color,
                           isActive: showEma21,
-                          onTap: visibility.toggleEma21,
+                          onTap: widget.isInteractive
+                              ? visibility.toggleEma21
+                              : null,
                         ),
                         _IndicatorLegendItem(
                           label: 'BOLL',
                           color: _bollOuterColor,
                           isActive: showBoll,
-                          onTap: visibility.toggleBoll,
+                          onTap: widget.isInteractive
+                              ? visibility.toggleBoll
+                              : null,
                         ),
                         _IndicatorLegendItem(
                           label: 'SAR',
                           color: KColors.textSecondary,
                           isActive: showSar,
-                          onTap: visibility.toggleSar,
+                          onTap: widget.isInteractive
+                              ? visibility.toggleSar
+                              : null,
                         ),
                       ],
                     ),
@@ -568,7 +616,9 @@ class _CandlestickChartWidgetState extends State<CandlestickChartWidget> {
                         child: _RsiLegend(
                           isActive: showRsi,
                           snapshot: rsiSnapshot,
-                          onTap: visibility.toggleRsi,
+                          onTap: widget.isInteractive
+                              ? visibility.toggleRsi
+                              : null,
                         ),
                       ),
                     ),
@@ -1203,25 +1253,25 @@ class _IndicatorLegendItem {
     required this.label,
     required this.color,
     required this.isActive,
-    required this.onTap,
+    this.onTap,
   });
 
   final String label;
   final Color color;
   final bool isActive;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 }
 
 class _RsiLegend extends StatelessWidget {
   const _RsiLegend({
     required this.isActive,
     required this.snapshot,
-    required this.onTap,
+    this.onTap,
   });
 
   final bool isActive;
   final _RsiSnapshot snapshot;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

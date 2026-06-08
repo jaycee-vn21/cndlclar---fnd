@@ -13,6 +13,8 @@ class TradeService {
     double? stopLossPercent,
     double? takeProfitPercent,
     double? baseAmount,
+    double? autoSellProfitPercent,
+    String? interval,
   }) async {
     final url = Uri.parse('$_baseUrl/$action');
 
@@ -28,6 +30,8 @@ class TradeService {
       'stopLossPercent': stopLossPercent,
       'takeProfitPercent': takeProfitPercent,
       'baseAmount': baseAmount,
+      'autoSellProfitPercent': autoSellProfitPercent,
+      'interval': interval,
     }..removeWhere((_, value) => value == null);
 
     final body = jsonEncode(payload);
@@ -35,7 +39,7 @@ class TradeService {
     try {
       final response = await http.post(url, headers: headers, body: body);
 
-      if (response.statusCode == 200) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = jsonDecode(response.body);
         return {'success': true, 'data': decoded};
       } else {

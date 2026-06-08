@@ -12,6 +12,8 @@ import 'package:cndlclar/widgets/token_card_widget.dart';
 import 'package:cndlclar/utils/constants.dart';
 
 class TokenListViewSection extends StatelessWidget {
+  static const _rollingRankIntervals = ['5m', '15m', '30m', '1h'];
+
   final bool showList;
   final Token? singleToken;
   final Map<String, Map<String, List<KlineData>>>? historicalKlines;
@@ -21,6 +23,8 @@ class TokenListViewSection extends StatelessWidget {
   final String signalFilter;
 
   // trade button handlers
+  final Function(Token)? onEma7LimitOcoPressed;
+  final Function(Token)? onMarketAutoClosePressed;
   final Function(Token)? onBuyPressed;
   final Function(Token)? onQuickBuyPressed;
   final Function(Token)? onSellPressed;
@@ -34,6 +38,8 @@ class TokenListViewSection extends StatelessWidget {
     this.searchQuery = '',
     this.showSignalsOnly = false,
     this.signalFilter = 'all',
+    this.onEma7LimitOcoPressed,
+    this.onMarketAutoClosePressed,
     this.onBuyPressed,
     this.onQuickBuyPressed,
     this.onSellPressed,
@@ -160,6 +166,42 @@ class TokenListViewSection extends StatelessWidget {
     return ema;
   }
 
+  Map<String, Map<String, int>> _rollingPriceChangeRanks(
+    List<Token> rankTokens,
+  ) {
+    final ranksBySymbol = <String, Map<String, int>>{};
+
+    for (final interval in _rollingRankIntervals) {
+      final rankedTokens =
+          rankTokens
+              .where((token) => token.hasRollingPriceChange(interval))
+              .toList(growable: false)
+            ..sort(
+              (a, b) => b
+                  .rollingPriceChange(interval)
+                  .compareTo(a.rollingPriceChange(interval)),
+            );
+
+      double? previousValue;
+      var displayedRank = 0;
+
+      for (var index = 0; index < rankedTokens.length; index += 1) {
+        final token = rankedTokens[index];
+        final value = token.rollingPriceChange(interval);
+
+        if (previousValue == null || value != previousValue) {
+          displayedRank = index + 1;
+          previousValue = value;
+        }
+
+        ranksBySymbol.putIfAbsent(token.name, () => <String, int>{})[interval] =
+            displayedRank;
+      }
+    }
+
+    return ranksBySymbol;
+  }
+
   Widget _buildEmptyState(String title, {String? subtitle}) {
     return Center(
       child: Padding(
@@ -208,6 +250,10 @@ class TokenListViewSection extends StatelessWidget {
                   orElse: () => singleToken!,
                 ),
               ];
+        final rankTokens = tokensProvider.tokens.isNotEmpty
+            ? tokensProvider.tokens
+            : rawTokens;
+        final rollingRanksBySymbol = _rollingPriceChangeRanks(rankTokens);
 
         final tokens =
             rawTokens.where((token) {
@@ -293,6 +339,9 @@ class TokenListViewSection extends StatelessWidget {
                                   token.rollingPriceChangePerInterval,
                               rollingPriceChangeReady:
                                   token.rollingPriceChangeReadyPerInterval,
+                              rollingPriceChangeRanks:
+                                  rollingRanksBySymbol[token.name],
+                              allowChartPanAndZoom: !showList,
                               dailyChange: token.priceChange('1d'),
                               // volume: token.volume(selectedInterval),
                               // netVolume: token.netVolume(selectedInterval),
@@ -304,6 +353,10 @@ class TokenListViewSection extends StatelessWidget {
                               historicalKlines: historicalKlines,
                               signalCandidate: signalBySymbol[token.name],
                               showSignalDetails: showSignalsOnly,
+                              onEma7LimitOcoPressed: () =>
+                                  onEma7LimitOcoPressed?.call(token),
+                              onMarketAutoClosePressed: () =>
+                                  onMarketAutoClosePressed?.call(token),
                               onBuyPressed: () => onBuyPressed?.call(token),
                               onQuickBuyPressed: () =>
                                   onQuickBuyPressed?.call(token),
