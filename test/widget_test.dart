@@ -14,7 +14,9 @@ void main() {
     await tester.pumpWidget(const CndlClarApp(connectToBackend: false));
 
     expect(find.text('CndlClar'), findsOneWidget);
-    expect(find.bySemanticsLabel('Home'), findsOneWidget);
+    expect(find.bySemanticsLabel('Market'), findsOneWidget);
+    expect(find.bySemanticsLabel('Charts'), findsOneWidget);
+    expect(find.bySemanticsLabel('Demo'), findsOneWidget);
     expect(find.bySemanticsLabel('Alerts'), findsOneWidget);
 
     expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 0);
@@ -22,7 +24,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Alerts'));
     await tester.pump();
 
-    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 1);
+    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 3);
   });
 
   testWidgets('candlestick chart shows candle data while long-press dragging', (

@@ -334,7 +334,9 @@ class KGradients {
 
 /// ---------------- Icons ----------------
 class KIcons {
+  static const navMarket = CupertinoIcons.list_bullet;
   static const navHome = CupertinoIcons.graph_circle;
+  static const navDemo = CupertinoIcons.money_dollar_circle;
   static const navAlert = CupertinoIcons.bell;
   static const setSortingField = CupertinoIcons.sort_down_circle;
   static const search = CupertinoIcons.search;

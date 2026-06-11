@@ -21,6 +21,8 @@ class TokenCardWidget extends StatelessWidget {
   final Map<String, bool>? rollingPriceChangeReady;
   final Map<String, int>? rollingPriceChangeRanks;
   final bool allowChartPanAndZoom;
+  final bool showChart;
+  final bool showTradeButtons;
   final double? volume;
   final double? netVolume;
   final double? marketCap;
@@ -50,6 +52,8 @@ class TokenCardWidget extends StatelessWidget {
     this.rollingPriceChangeReady,
     this.rollingPriceChangeRanks,
     this.allowChartPanAndZoom = true,
+    this.showChart = true,
+    this.showTradeButtons = true,
     this.volume,
     this.netVolume,
     this.marketCap,
@@ -519,7 +523,8 @@ class TokenCardWidget extends StatelessWidget {
               IndicatorRowWidget(indicators: indicators),
 
               // --- Chart ---
-              if (historicalKlines?[tokenName]?[selectedInterval] != null &&
+              if (showChart &&
+                  historicalKlines?[tokenName]?[selectedInterval] != null &&
                   historicalKlines!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: KSpacing.xs),
@@ -567,14 +572,15 @@ class TokenCardWidget extends StatelessWidget {
                   "$selectedInterval Candle NetVolumeUSDT",
                   '\$${_formatLargeNumber(netVolume!)}',
                 ),
-              TradingButtonsRowWidget(
-                tokenName: tokenName,
-                onEma7LimitOco: onEma7LimitOcoPressed,
-                onMarketAutoClose: onMarketAutoClosePressed,
-                onBuy: onBuyPressed,
-                onQuickBuy: onQuickBuyPressed,
-                onSell: onSellPressed,
-              ),
+              if (showTradeButtons)
+                TradingButtonsRowWidget(
+                  tokenName: tokenName,
+                  onEma7LimitOco: onEma7LimitOcoPressed,
+                  onMarketAutoClose: onMarketAutoClosePressed,
+                  onBuy: onBuyPressed,
+                  onQuickBuy: onQuickBuyPressed,
+                  onSell: onSellPressed,
+                ),
             ],
           ),
         ),

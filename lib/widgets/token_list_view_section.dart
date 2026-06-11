@@ -21,6 +21,8 @@ class TokenListViewSection extends StatelessWidget {
   final String searchQuery;
   final bool showSignalsOnly;
   final String signalFilter;
+  final bool showCharts;
+  final bool showTradeButtons;
 
   // trade button handlers
   final Function(Token)? onEma7LimitOcoPressed;
@@ -38,6 +40,8 @@ class TokenListViewSection extends StatelessWidget {
     this.searchQuery = '',
     this.showSignalsOnly = false,
     this.signalFilter = 'all',
+    this.showCharts = true,
+    this.showTradeButtons = true,
     this.onEma7LimitOcoPressed,
     this.onMarketAutoClosePressed,
     this.onBuyPressed,
@@ -342,6 +346,8 @@ class TokenListViewSection extends StatelessWidget {
                               rollingPriceChangeRanks:
                                   rollingRanksBySymbol[token.name],
                               allowChartPanAndZoom: !showList,
+                              showChart: showCharts,
+                              showTradeButtons: showTradeButtons,
                               dailyChange: token.priceChange('1d'),
                               // volume: token.volume(selectedInterval),
                               // netVolume: token.netVolume(selectedInterval),

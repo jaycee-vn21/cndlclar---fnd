@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/providers/current_screen_index_provider.dart';
+import 'package:cndlclar/screens/demo_account_screen.dart';
 import 'package:cndlclar/screens/home_screen.dart';
 import 'package:cndlclar/utils/constants.dart';
 
@@ -16,14 +17,26 @@ class NavScreen extends StatefulWidget {
 
 class _NavScreenState extends State<NavScreen> {
   late final List<Widget> _screens;
-  final List<IconData> _icons = [KIcons.navHome, KIcons.navAlert];
-  final List<String> _labels = ['Home', 'Alerts'];
+  final List<IconData> _icons = [
+    KIcons.navMarket,
+    KIcons.navHome,
+    KIcons.navDemo,
+    KIcons.navAlert,
+  ];
+  final List<String> _labels = ['Market', 'Charts', 'Demo', 'Alerts'];
 
   @override
   void initState() {
     super.initState();
     _screens = [
-      HomeScreen(connectToBackend: widget.connectToBackend),
+      HomeScreen(
+        connectToBackend: widget.connectToBackend,
+        showCharts: false,
+        showTradeButtons: false,
+        title: 'CndlClar',
+      ),
+      const HomeScreen(connectToBackend: false, title: 'Charts'),
+      DemoAccountScreen(autoFetch: widget.connectToBackend),
       const AlertsScreen(),
     ];
   }

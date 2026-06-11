@@ -19,9 +19,18 @@ enum _TokenFeedMode { all, signals }
 enum _SignalFeedFilter { all, setup, elastic }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.connectToBackend = true});
+  const HomeScreen({
+    super.key,
+    this.connectToBackend = true,
+    this.showCharts = true,
+    this.showTradeButtons = true,
+    this.title = 'CndlClar',
+  });
 
   final bool connectToBackend;
+  final bool showCharts;
+  final bool showTradeButtons;
+  final String title;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -153,6 +162,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleMarketDataChanged() {
+    if (!widget.showCharts) return;
+
     final tokens = _tokensProvider?.tokens ?? const <Token>[];
     if (tokens.isEmpty) return;
 
@@ -164,6 +175,55 @@ class _HomeScreenState extends State<HomeScreen> {
     if (didUpdateLiveCandles && mounted) {
       setState(() {});
     }
+  }
+
+  Future<void> _ensureHistoricalKlinesForToken(Token token) async {
+    final selectedInterval = _intervalProvider?.selectedInterval ?? '5m';
+    if (_historicalKlines[token.name]?[selectedInterval]?.isNotEmpty == true) {
+      return;
+    }
+
+    final key = _historicalKey(token.name, selectedInterval);
+    if (_historicalFetchesInFlight.contains(key)) return;
+
+    _historicalFetchesInFlight.add(key);
+    try {
+      final hasHistoricalCandles = await _fetchHistoricalKlinesForToken(
+        token,
+        selectedInterval,
+      );
+
+      if (hasHistoricalCandles) {
+        _historicalFetchesCompleted.add(key);
+        _historicalFetchFailures.remove(key);
+      } else {
+        _historicalFetchFailures[key] = DateTime.now();
+      }
+    } finally {
+      _historicalFetchesInFlight.remove(key);
+    }
+  }
+
+  Future<void> _openTokenScreen(Token token) async {
+    if (!widget.showCharts) {
+      await _ensureHistoricalKlinesForToken(token);
+    }
+
+    if (!mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => IndividualTokenScreen(
+          token: token,
+          historicalKlines: _historicalKlines,
+          onEma7LimitOcoPressed: () => _ema7LimitOcoPressed(token),
+          onMarketAutoClosePressed: () => _marketAutoClosePressed(token),
+          onBuyPressed: () => _buyPressed(token),
+          onQuickBuyPressed: () => _quickBuyPressed(token),
+          onSellPressed: () => _sellPressed(token),
+        ),
+      ),
+    );
   }
 
   void _fetchMissingHistoricalKlines(
@@ -700,7 +760,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: KColors.background,
       appBar: AppBar(
-        title: const Text('CndlClar', style: KTextStyles.appBarTitle),
+        title: Text(widget.title, style: KTextStyles.appBarTitle),
         backgroundColor: Colors.transparent,
         centerTitle: true,
         elevation: 0,
@@ -711,26 +771,13 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: TokenListViewSection(
               showList: true,
-              historicalKlines: _historicalKlines,
+              historicalKlines: widget.showCharts ? _historicalKlines : null,
+              showCharts: widget.showCharts,
+              showTradeButtons: widget.showTradeButtons,
               searchQuery: _searchQuery,
               showSignalsOnly: _feedMode == _TokenFeedMode.signals,
               signalFilter: _signalFilterValue(_signalFilter),
-              onTokenTap: (token) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => IndividualTokenScreen(
-                      token: token,
-                      historicalKlines: _historicalKlines,
-                      onEma7LimitOcoPressed: () => _ema7LimitOcoPressed(token),
-                      onMarketAutoClosePressed: () =>
-                          _marketAutoClosePressed(token),
-                      onBuyPressed: () => _buyPressed(token),
-                      onQuickBuyPressed: () => _quickBuyPressed(token),
-                      onSellPressed: () => _sellPressed(token),
-                    ),
-                  ),
-                );
-              },
+              onTokenTap: _openTokenScreen,
               onEma7LimitOcoPressed: _ema7LimitOcoPressed,
               onMarketAutoClosePressed: _marketAutoClosePressed,
               onBuyPressed: _buyPressed,

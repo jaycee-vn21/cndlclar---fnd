@@ -1,16 +1,21 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:cndlclar/models/demo_paper_account.dart';
 import 'package:cndlclar/models/short_term_buy_candidate.dart';
 import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/models/indicator.dart';
+import 'package:cndlclar/services/demo_paper_account_service.dart';
 import 'package:cndlclar/services/socket_manager.dart';
+import 'package:cndlclar/utils/config.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class TokensProvider with ChangeNotifier {
   io.Socket? _socket;
   List<Token> _tokens = [];
   List<ShortTermBuyCandidate> _shortTermBuyCandidates = [];
+  DemoPaperAccount _demoPaperAccount = DemoPaperAccount.initial();
   DateTime? _shortTermBuyCandidatesUpdatedAt;
+  bool _isDemoPaperAccountLoading = false;
 
   // Stores sparkline per token and interval for quick updates
   Map<String, Map<String, List<double>>> tokenSparklines = {};
@@ -25,6 +30,8 @@ class TokensProvider with ChangeNotifier {
       _shortTermBuyCandidates;
   DateTime? get shortTermBuyCandidatesUpdatedAt =>
       _shortTermBuyCandidatesUpdatedAt;
+  DemoPaperAccount get demoPaperAccount => _demoPaperAccount;
+  bool get isDemoPaperAccountLoading => _isDemoPaperAccountLoading;
 
   Map<String, ShortTermBuyCandidate> get shortTermBuyCandidatesBySymbol => {
     for (final candidate in _shortTermBuyCandidates)
@@ -91,6 +98,24 @@ class TokensProvider with ChangeNotifier {
     });
 
     socket.on('shortTermBuyCandidates', _handleShortTermBuyCandidates);
+    socket.on('demoPaperAccount', _handleDemoPaperAccount);
+  }
+
+  Future<void> fetchDemoPaperAccount() async {
+    if (_isDemoPaperAccountLoading) return;
+
+    _isDemoPaperAccountLoading = true;
+    notifyListeners();
+
+    final service = DemoPaperAccountService(baseUrl: AppConfig.baseUrl);
+    final account = await service.fetchDemoPaperAccount();
+
+    if (account != null) {
+      _demoPaperAccount = account;
+    }
+
+    _isDemoPaperAccountLoading = false;
+    notifyListeners();
   }
 
   void _handleShortTermBuyCandidates(dynamic payload) {
@@ -115,6 +140,15 @@ class TokensProvider with ChangeNotifier {
     _shortTermBuyCandidates = parsedCandidates;
     _shortTermBuyCandidatesUpdatedAt = DateTime.tryParse(
       data['generatedAt']?.toString() ?? '',
+    );
+    notifyListeners();
+  }
+
+  void _handleDemoPaperAccount(dynamic payload) {
+    if (payload is! Map) return;
+
+    _demoPaperAccount = DemoPaperAccount.fromMap(
+      Map<String, dynamic>.from(payload),
     );
     notifyListeners();
   }
