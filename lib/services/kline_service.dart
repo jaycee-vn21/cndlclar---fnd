@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/kline_data.dart';
+import '../utils/config.dart';
 
 class KlineService {
   final String baseUrl;
@@ -17,7 +18,9 @@ class KlineService {
       '$baseUrl/api/v1/data/kline/historical?symbol=$symbol&interval=$interval&limit=$limit',
     );
     try {
-      final response = await http.get(url).timeout(const Duration(seconds: 8));
+      final response = await http
+          .get(url, headers: {'x-device-token': AppConfig.deviceToken})
+          .timeout(const Duration(seconds: 8));
       if (response.statusCode != 200) {
         return [];
       }
