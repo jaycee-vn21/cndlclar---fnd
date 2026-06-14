@@ -14,7 +14,8 @@ class SortingFields {
   static const rsiRebound = 'rsiRebound';
   static const volume = 'volume';
   static const relativeVolume5m = 'relativeVolume5m';
-  static const ema7Setup = 'ema7Setup';
+  static const ema7Pullback5m = 'ema7Pullback5m';
+  static const ema7Pullback30m = 'ema7Pullback30m';
 }
 
 class SortingFieldProvider extends ChangeNotifier {

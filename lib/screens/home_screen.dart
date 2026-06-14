@@ -204,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final selectedInterval = _intervalProvider?.selectedInterval ?? '5m';
     final intervalsToSync = <String>{
       '5m',
+      '30m',
       if (widget.showCharts) selectedInterval,
     };
     var didUpdateLiveCandles = false;
@@ -773,8 +774,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       _sortMenuItem(
                         selectedSort: sortingFieldProvider.sortingField,
-                        value: SortingFields.ema7Setup,
-                        label: 'EMA7 pullback',
+                        value: SortingFields.ema7Pullback5m,
+                        label: 'EMA7 5m pullback',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.ema7Pullback30m,
+                        label: 'EMA7 30m pullback',
                       ),
                     ],
                   ),

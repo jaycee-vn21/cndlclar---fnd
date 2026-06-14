@@ -110,10 +110,12 @@ class TokenListViewSection extends StatelessWidget {
         return token.volume(selectedInterval);
       case SortingFields.relativeVolume5m:
         return signal?.metric('relativeVolume5m') ?? 0;
-      case SortingFields.ema7Setup:
-        return _ema7SetupScore(token, selectedInterval) ??
+      case SortingFields.ema7Pullback5m:
+        return _ema7PullbackScore(token, '5m') ??
             signal?.metric('ema7SetupScore5m') ??
             double.negativeInfinity;
+      case SortingFields.ema7Pullback30m:
+        return _ema7PullbackScore(token, '30m') ?? double.negativeInfinity;
       case SortingFields.priceChange:
       default:
         return token.priceChange(selectedInterval);
@@ -139,31 +141,81 @@ class TokenListViewSection extends StatelessWidget {
     }
   }
 
-  double? _ema7SetupScore(Token token, String selectedInterval) {
-    final candles = historicalKlines?[token.name]?[selectedInterval];
-    if (candles == null || candles.length < 8) return null;
+  double? _ema7PullbackScore(Token token, String interval) {
+    final candles = historicalKlines?[token.name]?[interval];
+    if (candles == null || candles.length < 9) return null;
 
-    final sortedCandles = List<KlineData>.from(candles)
-      ..sort((a, b) => a.time.compareTo(b.time));
-    final latest = sortedCandles.last;
-    final ema7 = _emaValue(
-      sortedCandles.map((candle) => candle.close).toList(growable: false),
-      7,
-    );
-    if (ema7 == null || ema7 <= 0) return null;
+    final closedCandles =
+        candles.where((candle) => candle.isClosed).toList(growable: false)
+          ..sort((a, b) => a.time.compareTo(b.time));
 
-    final closeDistance = ((latest.close - ema7) / ema7) * 100;
-    final lowDistance = ((latest.low - ema7) / ema7) * 100;
-    final touchedEma7 = lowDistance <= 0.18 && lowDistance >= -0.45;
-    final closedAboveEma7 = closeDistance >= 0;
+    if (closedCandles.length < 9) return null;
 
-    var score = 100.0;
-    score -= lowDistance.abs() * 36;
-    score -= math.max(closeDistance - 1.15, 0) * 24;
-    score -= math.max(-closeDistance - 0.2, 0) * 45;
+    final closes = closedCandles
+        .map((candle) => candle.close)
+        .toList(growable: false);
+    final ema7Values = _emaSeries(closes, 7);
+    final lowDistances = <double>[];
+    final closeDistances = <double>[];
+    final startIndex = closedCandles.length - 3;
 
-    if (touchedEma7 && closedAboveEma7) score += 30;
-    if (closedAboveEma7) score += 12;
+    for (var index = startIndex; index < closedCandles.length; index += 1) {
+      final ema7 = ema7Values[index];
+      if (ema7 == null || ema7 <= 0) return null;
+
+      final candle = closedCandles[index];
+      final lowDistance = _percentDistance(candle.low, ema7);
+      final closeDistance = _percentDistance(candle.close, ema7);
+      if (lowDistance == null || closeDistance == null) return null;
+
+      lowDistances.add(lowDistance);
+      closeDistances.add(closeDistance);
+    }
+
+    final averageLowDistance =
+        lowDistances.reduce((sum, value) => sum + value) / lowDistances.length;
+    final averageAbsoluteLowDistance =
+        lowDistances
+            .map((value) => value.abs())
+            .reduce((sum, value) => sum + value) /
+        lowDistances.length;
+    final worstAbsoluteLowDistance = lowDistances
+        .map((value) => value.abs())
+        .reduce(math.max);
+    final distanceSpread =
+        lowDistances.reduce(math.max) - lowDistances.reduce(math.min);
+
+    var score = 160.0;
+    score -= averageAbsoluteLowDistance * 58;
+    score -= worstAbsoluteLowDistance * 24;
+    score -= distanceSpread * 18;
+
+    for (var index = 0; index < lowDistances.length; index += 1) {
+      final lowDistance = lowDistances[index];
+      final closeDistance = closeDistances[index];
+
+      if (lowDistance >= -0.08 && lowDistance <= 0.55) {
+        score += 22;
+      } else if (lowDistance >= -0.22 && lowDistance <= 0.95) {
+        score += 10;
+      }
+
+      if (lowDistance < -0.45) {
+        score -= 28 + lowDistance.abs() * 22;
+      } else if (lowDistance > 1.6) {
+        score -= 22 + (lowDistance - 1.6) * 20;
+      }
+
+      if (closeDistance >= 0) {
+        score += 8;
+      } else if (closeDistance < -0.35) {
+        score -= 18 + closeDistance.abs() * 18;
+      }
+    }
+
+    if (averageLowDistance >= -0.08 && averageLowDistance <= 0.55) {
+      score += 16;
+    }
 
     return score;
   }
@@ -386,17 +438,22 @@ class TokenListViewSection extends StatelessWidget {
     return null;
   }
 
-  double? _emaValue(List<double> prices, int period) {
-    if (prices.length < period) return null;
+  List<double?> _emaSeries(List<double> prices, int period) {
+    if (prices.length < period) {
+      return List<double?>.filled(prices.length, null);
+    }
 
+    final values = List<double?>.filled(prices.length, null);
     final smoothing = 2 / (period + 1);
     var ema = prices.take(period).reduce((sum, price) => sum + price) / period;
+    values[period - 1] = ema;
 
     for (var i = period; i < prices.length; i++) {
       ema = prices[i] * smoothing + ema * (1 - smoothing);
+      values[i] = ema;
     }
 
-    return ema;
+    return values;
   }
 
   Map<String, Map<String, int>> _rollingPriceChangeRanks(
