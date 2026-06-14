@@ -57,6 +57,7 @@ class ShortTermBuyCandidate {
     required this.signalTypes,
     required this.setupSignal,
     required this.elasticSignal,
+    required this.structureSignal,
   });
 
   final int rank;
@@ -68,6 +69,7 @@ class ShortTermBuyCandidate {
   final List<String> signalTypes;
   final ShortTermSignalTrack setupSignal;
   final ShortTermSignalTrack elasticSignal;
+  final ShortTermSignalTrack structureSignal;
 
   factory ShortTermBuyCandidate.fromMap(Map<String, dynamic> map) {
     final rawMetrics = map['metrics'];
@@ -108,19 +110,33 @@ class ShortTermBuyCandidate {
       fallbackRank: _nullableInt(map['elasticRank']),
       fallbackReasons: _stringList(map['elasticReasons']),
     );
+    final structureFallbackScore = _doubleValue(map['structureScore']);
+    final structureSignal = ShortTermSignalTrack.fromMap(
+      signals['structure'],
+      type: 'structure',
+      fallbackScore: structureFallbackScore,
+      fallbackIsActive: _boolValue(map['structureActive']) ?? false,
+      fallbackRank: _nullableInt(map['structureRank']),
+      fallbackReasons: _stringList(map['structureReasons']),
+    );
     final primaryType = _primaryType(
       map['primarySignalType'],
       setupSignal,
       elasticSignal,
+      structureSignal,
     );
     final primaryReasons = primaryType == 'elastic'
         ? elasticSignal.reasons
+        : primaryType == 'structure'
+        ? structureSignal.reasons
         : setupSignal.reasons;
     final parsedSignalTypes = _stringList(map['signalTypes']);
     final parsedScore = _doubleValue(map['score']);
-    final fallbackScore = setupSignal.score > elasticSignal.score
-        ? setupSignal.score
-        : elasticSignal.score;
+    final fallbackScore = [
+      setupSignal.score,
+      elasticSignal.score,
+      structureSignal.score,
+    ].reduce((a, b) => a > b ? a : b);
 
     return ShortTermBuyCandidate(
       rank: _intValue(map['rank']),
@@ -134,9 +150,11 @@ class ShortTermBuyCandidate {
           : [
               if (setupSignal.isActive) 'setup',
               if (elasticSignal.isActive) 'elastic',
+              if (structureSignal.isActive) 'structure',
             ],
       setupSignal: setupSignal,
       elasticSignal: elasticSignal,
+      structureSignal: structureSignal,
     );
   }
 
@@ -144,21 +162,27 @@ class ShortTermBuyCandidate {
 
   double get setupScore => setupSignal.score;
   double get elasticScore => elasticSignal.score;
+  double get structureScore => structureSignal.score;
   int? get setupRank => setupSignal.rank;
   int? get elasticRank => elasticSignal.rank;
+  int? get structureRank => structureSignal.rank;
   bool get hasSetupSignal => setupSignal.isActive;
   bool get hasElasticSignal => elasticSignal.isActive;
+  bool get hasStructureSignal => structureSignal.isActive;
 
-  ShortTermSignalTrack get primarySignal =>
-      primarySignalType == 'elastic' ? elasticSignal : setupSignal;
+  ShortTermSignalTrack get primarySignal => primarySignalType == 'elastic'
+      ? elasticSignal
+      : primarySignalType == 'structure'
+      ? structureSignal
+      : setupSignal;
 
   List<ShortTermSignalTrack> get activeSignals {
     final primary = primarySignal;
-    final secondary = primarySignalType == 'elastic'
-        ? setupSignal
-        : elasticSignal;
+    final remaining = [setupSignal, elasticSignal, structureSignal]
+        .where((signal) => signal.type != primary.type && signal.isActive)
+        .toList(growable: false);
 
-    return [if (primary.isActive) primary, if (secondary.isActive) secondary];
+    return [if (primary.isActive) primary, ...remaining];
   }
 
   static int _intValue(dynamic value) {
@@ -198,13 +222,21 @@ class ShortTermBuyCandidate {
     dynamic value,
     ShortTermSignalTrack setupSignal,
     ShortTermSignalTrack elasticSignal,
+    ShortTermSignalTrack structureSignal,
   ) {
     final parsed = value?.toString();
-    if (parsed == 'setup' || parsed == 'elastic') return parsed!;
-    if (elasticSignal.isActive &&
-        (!setupSignal.isActive || elasticSignal.score >= setupSignal.score)) {
-      return 'elastic';
+    if (parsed == 'setup' || parsed == 'elastic' || parsed == 'structure') {
+      return parsed!;
     }
-    return 'setup';
+
+    final activeSignals =
+        [
+            setupSignal,
+            elasticSignal,
+            structureSignal,
+          ].where((signal) => signal.isActive).toList(growable: false)
+          ..sort((a, b) => b.score.compareTo(a.score));
+
+    return activeSignals.isEmpty ? 'setup' : activeSignals.first.type;
   }
 }

@@ -13,6 +13,8 @@ import 'package:cndlclar/utils/constants.dart';
 
 class TokenListViewSection extends StatelessWidget {
   static const _rollingRankIntervals = ['5m', '15m', '30m', '1h'];
+  static const _rsiReboundInterval = '5m';
+  static const _rsiReboundWindowCandles = 18;
 
   final bool showList;
   final Token? singleToken;
@@ -72,6 +74,7 @@ class TokenListViewSection extends StatelessWidget {
     required String sortField,
     required String selectedInterval,
     required TokensProvider tokensProvider,
+    Map<String, double?> rsiReboundScoresBySymbol = const {},
   }) {
     final signal = tokensProvider.shortTermBuyCandidatesBySymbol[token.name];
 
@@ -97,6 +100,12 @@ class TokenListViewSection extends StatelessWidget {
         return signal?.setupScore ?? double.negativeInfinity;
       case SortingFields.elasticSignalScore:
         return signal?.elasticScore ?? double.negativeInfinity;
+      case SortingFields.structureSignalScore:
+        return signal?.structureScore ?? double.negativeInfinity;
+      case SortingFields.rsiRebound:
+        return rsiReboundScoresBySymbol[token.name] ??
+            signal?.metric('rsiReboundScore') ??
+            double.negativeInfinity;
       case SortingFields.volume:
         return token.volume(selectedInterval);
       case SortingFields.relativeVolume5m:
@@ -122,6 +131,8 @@ class TokenListViewSection extends StatelessWidget {
         return signal.hasSetupSignal;
       case 'elastic':
         return signal.hasElasticSignal;
+      case 'structure':
+        return signal.hasStructureSignal;
       case 'all':
       default:
         return true;
@@ -155,6 +166,224 @@ class TokenListViewSection extends StatelessWidget {
     if (closedAboveEma7) score += 12;
 
     return score;
+  }
+
+  double? _rsiReboundScore(Token token) {
+    final candles = historicalKlines?[token.name]?[_rsiReboundInterval];
+    if (candles == null || candles.length < 20) return null;
+
+    final closedCandles =
+        candles.where((candle) => candle.isClosed).toList(growable: false)
+          ..sort((a, b) => a.time.compareTo(b.time));
+    if (closedCandles.length < 20) return null;
+
+    final closes = closedCandles
+        .map((candle) => candle.close)
+        .toList(growable: false);
+    final rsi3Values = _rsiSeries(closes, 3);
+    final rsi14Values = _rsiSeries(closes, 14);
+    final startIndex = math.max(
+      14,
+      closedCandles.length - _rsiReboundWindowCandles,
+    );
+    final runs = <_RsiAboveRun>[];
+    _RsiAboveRun? currentRun;
+
+    for (var index = startIndex; index < closedCandles.length; index += 1) {
+      final rsi3 = rsi3Values[index];
+      final rsi14 = rsi14Values[index];
+      final isAbove = rsi3 != null && rsi14 != null && rsi3 > rsi14;
+
+      if (isAbove) {
+        currentRun ??= _RsiAboveRun(startIndex: index);
+        currentRun.update(index: index, rsi3: rsi3);
+      } else if (currentRun != null) {
+        runs.add(currentRun);
+        currentRun = null;
+      }
+    }
+
+    if (currentRun != null) {
+      runs.add(currentRun);
+    }
+
+    if (runs.isEmpty) return double.negativeInfinity;
+
+    final run = runs.first;
+    final latestCandle = closedCandles.last;
+    final peakCandle = closedCandles[run.maxRsi3Index];
+    final dropFromPeak = _percentDistance(latestCandle.close, peakCandle.close);
+    final latestClosedChange = _percentDistance(
+      latestCandle.close,
+      latestCandle.open,
+    );
+    final latestRange = _percentDistance(latestCandle.high, latestCandle.low);
+    final previousRanges = closedCandles
+        .skip(math.max(0, closedCandles.length - 7))
+        .take(math.max(0, math.min(6, closedCandles.length - 1)))
+        .map((candle) => _percentDistance(candle.high, candle.low))
+        .whereType<double>()
+        .where((value) => value > 0)
+        .toList(growable: false);
+    final averageRange = previousRanges.isEmpty
+        ? null
+        : previousRanges.reduce((sum, value) => sum + value) /
+              previousRanges.length;
+    final rangeExpansionRatio =
+        latestRange != null && averageRange != null && averageRange > 0
+        ? latestRange / averageRange
+        : null;
+    final currentPriceChange = token.priceChange(_rsiReboundInterval);
+    final currentRsi3 = _lastFinite(rsi3Values);
+    final currentRsi14 = _lastFinite(rsi14Values);
+    final barsSincePeak = closedCandles.length - 1 - run.maxRsi3Index;
+    final runEnded = run.endIndex < closedCandles.length - 1;
+
+    var score = 0.0;
+
+    if (runs.length == 1) {
+      score += 30;
+    } else {
+      score -= 90;
+    }
+
+    if (run.length >= 5) {
+      score += 28;
+    } else if (run.length >= 4) {
+      score += 20;
+    } else {
+      score -= 45;
+    }
+
+    if (run.maxRsi3 >= 92) {
+      score += 24;
+    } else if (run.maxRsi3 >= 90) {
+      score += 18;
+    } else {
+      score -= 36;
+    }
+
+    if (dropFromPeak != null) {
+      if (dropFromPeak <= -0.18 && dropFromPeak >= -2.8) {
+        score += 26;
+      } else if (dropFromPeak < -2.8 && dropFromPeak >= -4.2) {
+        score += 6;
+      } else if (dropFromPeak < -4.2) {
+        score -= 34;
+      } else if (dropFromPeak > 0.25) {
+        score -= 18;
+      }
+    }
+
+    if (currentPriceChange >= -1.4 && currentPriceChange <= 0.2) {
+      score += 14;
+    } else if (currentPriceChange < -2.2 || currentPriceChange > 2.8) {
+      score -= 22;
+    }
+
+    if (latestClosedChange != null) {
+      if (latestClosedChange <= 0.4 && latestClosedChange >= -1.8) {
+        score += 8;
+      } else if (latestClosedChange < -2.4 || latestClosedChange > 2.4) {
+        score -= 12;
+      }
+    }
+
+    if (barsSincePeak >= 1 && barsSincePeak <= 8) {
+      score += 10;
+    } else if (barsSincePeak > 10) {
+      score -= 12;
+    }
+
+    if (runEnded) {
+      score += 12;
+    } else if (currentRsi3 != null && currentRsi3 <= run.maxRsi3 - 8) {
+      score += 6;
+    }
+
+    if (currentRsi3 != null && currentRsi14 != null) {
+      if (currentRsi3 <= currentRsi14 + 2) {
+        score += 8;
+      } else if (currentRsi3 > currentRsi14 && runEnded) {
+        score -= 18;
+      }
+    }
+
+    if (rangeExpansionRatio != null) {
+      if (rangeExpansionRatio >= 1.15 && rangeExpansionRatio <= 2.8) {
+        score += 8;
+      } else if (rangeExpansionRatio > 3.8) {
+        score -= 8;
+      }
+    }
+
+    if (runs.length >= 2) {
+      score = math.min(score, -40);
+    }
+    if (run.length < 4 || run.maxRsi3 < 90) {
+      score = math.min(score, 15);
+    }
+
+    return score;
+  }
+
+  List<double?> _rsiSeries(List<double> prices, int period) {
+    if (prices.length <= period) {
+      return List<double?>.filled(prices.length, null);
+    }
+
+    final values = List<double?>.filled(prices.length, null);
+    var gains = 0.0;
+    var losses = 0.0;
+
+    for (var index = 1; index <= period; index += 1) {
+      final change = prices[index] - prices[index - 1];
+      if (change > 0) {
+        gains += change;
+      } else {
+        losses += change.abs();
+      }
+    }
+
+    var averageGain = gains / period;
+    var averageLoss = losses / period;
+    values[period] = averageLoss == 0
+        ? 100
+        : 100 - 100 / (1 + averageGain / averageLoss);
+
+    for (var index = period + 1; index < prices.length; index += 1) {
+      final change = prices[index] - prices[index - 1];
+      if (change > 0) {
+        averageGain = (averageGain * (period - 1) + change) / period;
+        averageLoss = (averageLoss * (period - 1)) / period;
+      } else if (change < 0) {
+        averageGain = (averageGain * (period - 1)) / period;
+        averageLoss = (averageLoss * (period - 1) + change.abs()) / period;
+      } else {
+        averageGain = (averageGain * (period - 1)) / period;
+        averageLoss = (averageLoss * (period - 1)) / period;
+      }
+
+      values[index] = averageLoss == 0
+          ? 100
+          : 100 - 100 / (1 + averageGain / averageLoss);
+    }
+
+    return values;
+  }
+
+  double? _percentDistance(double firstValue, double secondValue) {
+    if (secondValue == 0) return null;
+    final value = ((firstValue - secondValue) / secondValue) * 100;
+    return value.isFinite ? value : null;
+  }
+
+  double? _lastFinite(List<double?> values) {
+    for (var index = values.length - 1; index >= 0; index -= 1) {
+      final value = values[index];
+      if (value != null && value.isFinite) return value;
+    }
+    return null;
   }
 
   double? _emaValue(List<double> prices, int period) {
@@ -258,6 +487,12 @@ class TokenListViewSection extends StatelessWidget {
             ? tokensProvider.tokens
             : rawTokens;
         final rollingRanksBySymbol = _rollingPriceChangeRanks(rankTokens);
+        final rsiReboundScoresBySymbol = sortField == SortingFields.rsiRebound
+            ? {
+                for (final token in rawTokens)
+                  token.name: _rsiReboundScore(token),
+              }
+            : const <String, double?>{};
 
         final tokens =
             rawTokens.where((token) {
@@ -272,12 +507,14 @@ class TokenListViewSection extends StatelessWidget {
                 sortField: sortField,
                 selectedInterval: selectedInterval,
                 tokensProvider: tokensProvider,
+                rsiReboundScoresBySymbol: rsiReboundScoresBySymbol,
               );
               final bValue = _sortValue(
                 token: b,
                 sortField: sortField,
                 selectedInterval: selectedInterval,
                 tokensProvider: tokensProvider,
+                rsiReboundScoresBySymbol: rsiReboundScoresBySymbol,
               );
 
               return bValue.compareTo(aValue);
@@ -308,6 +545,8 @@ class TokenListViewSection extends StatelessWidget {
                                 ? 'No elastic signals yet'
                                 : signalFilter == 'setup'
                                 ? 'No normal signals yet'
+                                : signalFilter == 'structure'
+                                ? 'No structure signals yet'
                                 : 'No signal candidates yet'
                           : 'Waiting for market data',
                       subtitle: hasSearchQuery
@@ -377,5 +616,29 @@ class TokenListViewSection extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _RsiAboveRun {
+  _RsiAboveRun({required this.startIndex})
+    : endIndex = startIndex,
+      length = 0,
+      maxRsi3 = double.negativeInfinity,
+      maxRsi3Index = startIndex;
+
+  final int startIndex;
+  int endIndex;
+  int length;
+  double maxRsi3;
+  int maxRsi3Index;
+
+  void update({required int index, required double rsi3}) {
+    endIndex = index;
+    length += 1;
+
+    if (rsi3 > maxRsi3) {
+      maxRsi3 = rsi3;
+      maxRsi3Index = index;
+    }
   }
 }

@@ -21,6 +21,7 @@ class KColors {
   static const accentWarning = Color(0xFFFFC857);
   static const signalSetup = Color(0xFF38BDF8);
   static const signalElastic = Color(0xFFFF9F1C);
+  static const signalStructure = Color(0xFFA3E635);
   static const intervalUnselected = Colors.white12;
 
   static const progressBackground = Color(0xFF2A2A2A);

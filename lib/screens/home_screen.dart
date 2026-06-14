@@ -16,7 +16,7 @@ import 'package:cndlclar/utils/config.dart';
 
 enum _TokenFeedMode { all, signals }
 
-enum _SignalFeedFilter { all, setup, elastic }
+enum _SignalFeedFilter { all, setup, elastic, structure }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -55,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
   IntervalProvider? _intervalProvider;
   _TokenFeedMode _feedMode = _TokenFeedMode.all;
   _SignalFeedFilter _signalFilter = _SignalFeedFilter.all;
+  bool _isDemoTradeMode = true;
   bool _isSearchOpen = false;
   String _searchQuery = '';
 
@@ -65,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String action, // "buy" or "sell"
     required String symbol,
     String? actionLabel,
+    double? currentPrice,
     int? requestedLeverage,
     double? priceToBuy,
     double? stopLossPercent,
@@ -76,6 +78,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final result = await _tradeService.executeTrade(
       action: action,
       symbol: symbol,
+      demoMode: _isDemoTradeMode,
+      currentPrice: currentPrice,
       requestedLeverage: requestedLeverage,
       priceToBuy: priceToBuy,
       stopLossPercent: stopLossPercent,
@@ -90,12 +94,17 @@ class _HomeScreenState extends State<HomeScreen> {
       final isAccepted = data['status']?.toString() == 'accepted';
       final statusLabel = isAccepted ? 'Accepted' : 'Successful';
       final displayAction = actionLabel ?? action.toUpperCase();
+      final modeLabel = _isDemoTradeMode ? 'Demo' : 'Real';
+
+      if (_isDemoTradeMode && mounted) {
+        await context.read<TokensProvider>().fetchDemoPaperAccount();
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '$displayAction $statusLabel ✅: ${data['data']['message'] ?? ''}',
+            '$modeLabel $displayAction $statusLabel ✅: ${data['data']['message'] ?? ''}',
             style: TextStyle(color: KColors.textPrimary),
           ),
           backgroundColor: KColors.tradeSuccessfulSnackbar,
@@ -119,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _handleTrade(
       action: 'buy',
       symbol: token.name,
+      currentPrice: _tradeCurrentPrice(token),
       requestedLeverage: AppConfig.requestedLaverage,
       stopLossPercent: 1.5,
       takeProfitPercent: 2,
@@ -129,12 +139,17 @@ class _HomeScreenState extends State<HomeScreen> {
     _handleTrade(
       action: 'buy',
       symbol: token.name,
+      currentPrice: _tradeCurrentPrice(token),
       requestedLeverage: AppConfig.requestedLaverage,
     );
   }
 
   void _sellPressed(Token token) {
-    _handleTrade(action: 'sell', symbol: token.name);
+    _handleTrade(
+      action: 'sell',
+      symbol: token.name,
+      currentPrice: _tradeCurrentPrice(token),
+    );
   }
 
   void _ema7LimitOcoPressed(Token token) {
@@ -142,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
       action: 'ema7-limit-buy-oco',
       actionLabel: 'EMA7 Limit + OCO',
       symbol: token.name,
+      currentPrice: _tradeCurrentPrice(token),
       requestedLeverage: AppConfig.requestedLaverage,
       stopLossPercent: 1.5,
       takeProfitPercent: 2,
@@ -153,6 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
       action: 'market-buy-auto-close',
       actionLabel: '5m Auto Sell',
       symbol: token.name,
+      currentPrice: _tradeCurrentPrice(token),
       requestedLeverage: AppConfig.requestedLaverage,
       stopLossPercent: 1.5,
       takeProfitPercent: 2,
@@ -161,16 +178,41 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _handleMarketDataChanged() {
-    if (!widget.showCharts) return;
+  double _tradeCurrentPrice(Token token) {
+    final selectedInterval = _intervalProvider?.selectedInterval ?? '5m';
+    final selectedPrice = token.closePrice(selectedInterval);
+    if (selectedPrice > 0) return selectedPrice;
 
+    final oneMinutePrice = token.closePrice('1m');
+    if (oneMinutePrice > 0) return oneMinutePrice;
+
+    final fiveMinutePrice = token.closePrice('5m');
+    if (fiveMinutePrice > 0) return fiveMinutePrice;
+
+    for (final interval in const ['15m', '30m', '1h', '1d']) {
+      final price = token.closePrice(interval);
+      if (price > 0) return price;
+    }
+
+    return 0;
+  }
+
+  void _handleMarketDataChanged() {
     final tokens = _tokensProvider?.tokens ?? const <Token>[];
     if (tokens.isEmpty) return;
 
     final selectedInterval = _intervalProvider?.selectedInterval ?? '5m';
-    final didUpdateLiveCandles = _mergeLiveCandles(tokens, selectedInterval);
+    final intervalsToSync = <String>{
+      '5m',
+      if (widget.showCharts) selectedInterval,
+    };
+    var didUpdateLiveCandles = false;
 
-    _fetchMissingHistoricalKlines(tokens, selectedInterval);
+    for (final interval in intervalsToSync) {
+      didUpdateLiveCandles =
+          _mergeLiveCandles(tokens, interval) || didUpdateLiveCandles;
+      _fetchMissingHistoricalKlines(tokens, interval);
+    }
 
     if (didUpdateLiveCandles && mounted) {
       setState(() {});
@@ -474,6 +516,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return 'normal';
       case _SignalFeedFilter.elastic:
         return 'elastic';
+      case _SignalFeedFilter.structure:
+        return 'structure';
       case _SignalFeedFilter.all:
         return 'all';
     }
@@ -485,6 +529,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return 'setup';
       case _SignalFeedFilter.elastic:
         return 'elastic';
+      case _SignalFeedFilter.structure:
+        return 'structure';
       case _SignalFeedFilter.all:
         return 'signals';
     }
@@ -499,6 +545,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case _SignalFeedFilter.elastic:
         return tokensProvider.shortTermBuyCandidates
             .where((candidate) => candidate.hasElasticSignal)
+            .length;
+      case _SignalFeedFilter.structure:
+        return tokensProvider.shortTermBuyCandidates
+            .where((candidate) => candidate.hasStructureSignal)
             .length;
       case _SignalFeedFilter.all:
         return tokensProvider.shortTermBuyCandidates.length;
@@ -518,11 +568,18 @@ class _HomeScreenState extends State<HomeScreen> {
       case _SignalFeedFilter.elastic:
         sortingFieldProvider.setSortingField(SortingFields.elasticSignalScore);
         break;
+      case _SignalFeedFilter.structure:
+        sortingFieldProvider.setSortingField(
+          SortingFields.structureSignalScore,
+        );
+        break;
       case _SignalFeedFilter.all:
         if (sortingFieldProvider.sortingField ==
                 SortingFields.setupSignalScore ||
             sortingFieldProvider.sortingField ==
-                SortingFields.elasticSignalScore) {
+                SortingFields.elasticSignalScore ||
+            sortingFieldProvider.sortingField ==
+                SortingFields.structureSignalScore) {
           sortingFieldProvider.setSortingField(SortingFields.signalScore);
         }
         break;
@@ -696,6 +753,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       _sortMenuItem(
                         selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.structureSignalScore,
+                        label: 'Structure signal',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
+                        value: SortingFields.rsiRebound,
+                        label: 'RSI first rebound',
+                      ),
+                      _sortMenuItem(
+                        selectedSort: sortingFieldProvider.sortingField,
                         value: SortingFields.volume,
                         label: 'Volume',
                       ),
@@ -736,6 +803,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         value: _SignalFeedFilter.elastic,
                         label: Text('Elastic'),
                       ),
+                      ButtonSegment<_SignalFeedFilter>(
+                        value: _SignalFeedFilter.structure,
+                        label: Text('Structure'),
+                      ),
                     ],
                     selected: {_signalFilter},
                     onSelectionChanged: (selection) =>
@@ -764,6 +835,34 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         centerTitle: true,
         elevation: 0,
+        actions: widget.showTradeButtons
+            ? [
+                Padding(
+                  padding: const EdgeInsets.only(right: KSpacing.sm),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _isDemoTradeMode ? 'Demo' : 'Real',
+                        style: KTextStyles.scannerMeta.copyWith(
+                          color: _isDemoTradeMode
+                              ? KColors.accentWarning
+                              : KColors.accentNegative,
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: !_isDemoTradeMode,
+                        activeThumbColor: KColors.accentNegative,
+                        inactiveThumbColor: KColors.accentWarning,
+                        onChanged: (isRealMode) {
+                          setState(() => _isDemoTradeMode = !isRealMode);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ]
+            : null,
       ),
       body: Column(
         children: [
@@ -771,7 +870,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: TokenListViewSection(
               showList: true,
-              historicalKlines: widget.showCharts ? _historicalKlines : null,
+              historicalKlines: _historicalKlines,
               showCharts: widget.showCharts,
               showTradeButtons: widget.showTradeButtons,
               searchQuery: _searchQuery,

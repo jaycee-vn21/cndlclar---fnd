@@ -148,11 +148,15 @@ class TokenCardWidget extends StatelessWidget {
   }
 
   Color _signalTrackColor(String type) {
-    return type == 'elastic' ? KColors.signalElastic : KColors.signalSetup;
+    if (type == 'elastic') return KColors.signalElastic;
+    if (type == 'structure') return KColors.signalStructure;
+    return KColors.signalSetup;
   }
 
   String _signalTrackLabel(String type) {
-    return type == 'elastic' ? 'Elastic' : 'Normal';
+    if (type == 'elastic') return 'Elastic';
+    if (type == 'structure') return 'Structure';
+    return 'Normal';
   }
 
   Widget _buildSignalBadge({

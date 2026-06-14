@@ -10,6 +10,8 @@ class SortingFields {
   static const signalScore = 'signalScore';
   static const setupSignalScore = 'setupSignalScore';
   static const elasticSignalScore = 'elasticSignalScore';
+  static const structureSignalScore = 'structureSignalScore';
+  static const rsiRebound = 'rsiRebound';
   static const volume = 'volume';
   static const relativeVolume5m = 'relativeVolume5m';
   static const ema7Setup = 'ema7Setup';

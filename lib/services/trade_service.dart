@@ -8,7 +8,9 @@ class TradeService {
   Future<Map<String, dynamic>> executeTrade({
     required String action, // "buy" or "sell"
     required String symbol,
+    bool demoMode = false,
     int? requestedLeverage,
+    double? currentPrice,
     double? priceToBuy,
     double? stopLossPercent,
     double? takeProfitPercent,
@@ -16,7 +18,9 @@ class TradeService {
     double? autoSellProfitPercent,
     String? interval,
   }) async {
-    final url = Uri.parse('$_baseUrl/$action');
+    final url = Uri.parse(
+      demoMode ? '$_baseUrl/demo/$action' : '$_baseUrl/$action',
+    );
 
     final headers = {
       'Content-Type': 'application/json',
@@ -26,6 +30,7 @@ class TradeService {
     final payload = <String, dynamic>{
       'symbol': symbol,
       'requestedLeverage': requestedLeverage,
+      'currentPrice': currentPrice,
       'priceToBuy': priceToBuy,
       'stopLossPercent': stopLossPercent,
       'takeProfitPercent': takeProfitPercent,
