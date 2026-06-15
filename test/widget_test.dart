@@ -1,6 +1,9 @@
 import 'package:cndlclar/models/kline_data.dart';
+import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/providers/chart_indicator_visibility_provider.dart';
+import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:cndlclar/widgets/candlestick_chart_widget.dart';
+import 'package:cndlclar/widgets/token_card_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -25,6 +28,90 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 3);
+  });
+
+  testWidgets('token card replaces a cached candle with live websocket OHLCV', (
+    WidgetTester tester,
+  ) async {
+    final interval = IntervalProvider();
+    final visibility = ChartIndicatorVisibilityProvider()..setChartScale(1);
+    final token = Token.fromMap({
+      'tokenName': 'LIVEUSDT',
+      'openPrice5m': 100.0,
+      'highPrice5m': 108.0,
+      'lowPrice5m': 99.0,
+      'closePrice5m': 105.0,
+      'volumeInMoney5m': 15000.0,
+      'netVolumeInMoney5m': 2500.0,
+      'priceChangePercent5m': 5.0,
+      'tickerPriceChange1h': 3.0,
+      'intervalStartTime5m': '2026-06-01T10:00:00.000Z',
+      'isIntervalClosed5m': false,
+    });
+
+    void noop() {}
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<IntervalProvider>.value(value: interval),
+          ChangeNotifierProvider<ChartIndicatorVisibilityProvider>.value(
+            value: visibility,
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 380,
+              child: TokenCardWidget(
+                liveToken: token,
+                tokenName: token.name,
+                currentPrice: token.closePrice('5m'),
+                selectedIntervalChange: token.priceChange('5m'),
+                tickerPriceChange1h: token.tickerPriceChange1h,
+                dailyChange: 0,
+                historicalKlines: {
+                  'LIVEUSDT': {
+                    '5m': [
+                      KlineData(
+                        time: DateTime.utc(2026, 6, 1, 10),
+                        open: 90,
+                        high: 95,
+                        low: 89,
+                        close: 91,
+                        volume: 1000,
+                        isClosed: false,
+                      ),
+                    ],
+                  },
+                },
+                showTradeButtons: false,
+                onEma7LimitOcoPressed: noop,
+                onMarketAutoClosePressed: noop,
+                onBuyPressed: noop,
+                onQuickBuyPressed: noop,
+                onSellPressed: noop,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final chart = find.byType(CandlestickChartWidget);
+    expect(chart, findsOneWidget);
+
+    final topLeft = tester.getTopLeft(chart);
+    final gesture = await tester.startGesture(topLeft + const Offset(190, 125));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+
+    expect(find.text('Live'), findsOneWidget);
+    expect(find.text('100.0000'), findsOneWidget);
+    expect(find.text('105.0000'), findsOneWidget);
+    expect(find.text('90.0000'), findsNothing);
+
+    await gesture.up();
   });
 
   testWidgets('candlestick chart shows candle data while long-press dragging', (

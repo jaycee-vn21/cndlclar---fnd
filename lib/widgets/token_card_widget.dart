@@ -1,9 +1,11 @@
 import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cndlclar/models/kline_data.dart';
 import 'package:cndlclar/models/indicator.dart';
 import 'package:cndlclar/models/short_term_buy_candidate.dart';
+import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
 import 'package:cndlclar/widgets/indicator_row_widget.dart';
 // import 'package:cndlclar/widgets/sparkline_widget.dart';
@@ -12,6 +14,7 @@ import 'package:cndlclar/widgets/trading_buttons_row_widget.dart';
 import 'package:cndlclar/utils/constants.dart';
 
 class TokenCardWidget extends StatelessWidget {
+  final Token? liveToken;
   final String tokenName;
   final double currentPrice;
   final double selectedIntervalChange;
@@ -42,6 +45,7 @@ class TokenCardWidget extends StatelessWidget {
 
   const TokenCardWidget({
     super.key,
+    this.liveToken,
     required this.tokenName,
     required this.currentPrice,
     required this.selectedIntervalChange,
@@ -111,6 +115,70 @@ class TokenCardWidget extends StatelessWidget {
   }
 
   int? _rollingRank(String interval) => rollingPriceChangeRanks?[interval];
+
+  double _openFromCloseAndChange(double close, double priceChangePercent) {
+    final factor = 1 + (priceChangePercent / 100);
+    if (factor <= 0) return close;
+    return close / factor;
+  }
+
+  KlineData? _liveCandleForInterval(String interval) {
+    final token = liveToken;
+    final startTime = token?.startTime(interval);
+    final close = token?.closePrice(interval) ?? 0;
+    if (token == null || startTime == null || close <= 0) return null;
+
+    final backendOpen = token.openPrice(interval);
+    final backendHigh = token.highPrice(interval);
+    final backendLow = token.lowPrice(interval);
+    final open = backendOpen > 0
+        ? backendOpen
+        : _openFromCloseAndChange(close, token.priceChange(interval));
+    final high = math.max(
+      backendHigh > 0 ? backendHigh : open,
+      math.max(open, close),
+    );
+    final low = math.min(
+      backendLow > 0 ? backendLow : open,
+      math.min(open, close),
+    );
+
+    return KlineData(
+      time: startTime,
+      open: open,
+      high: high,
+      low: low,
+      close: close,
+      volume: token.volume(interval),
+      volumeUsdt: token.volume(interval),
+      netVolumeUsdt: token.netVolume(interval),
+      isClosed: token.isIntervalClosed(interval),
+    );
+  }
+
+  List<KlineData> _chartCandles(String interval) {
+    final historical = historicalKlines?[tokenName]?[interval] ?? const [];
+    final liveCandle = _liveCandleForInterval(interval);
+    final candles = List<KlineData>.from(historical)
+      ..sort((a, b) => a.time.compareTo(b.time));
+
+    if (liveCandle == null) return candles;
+
+    final liveTime = liveCandle.time.millisecondsSinceEpoch;
+    final existingIndex = candles.indexWhere(
+      (candle) => candle.time.millisecondsSinceEpoch == liveTime,
+    );
+
+    if (existingIndex == -1) {
+      candles.add(liveCandle);
+      candles.sort((a, b) => a.time.compareTo(b.time));
+    } else {
+      candles[existingIndex] = liveCandle;
+    }
+
+    if (candles.length <= 50) return candles;
+    return candles.sublist(candles.length - 50);
+  }
 
   Color _percentColor(double? value) {
     if (value == null) return KColors.textSecondary;
@@ -473,6 +541,7 @@ class TokenCardWidget extends StatelessWidget {
     final selectedInterval = Provider.of<IntervalProvider>(
       context,
     ).selectedInterval;
+    final chartCandles = _chartCandles(selectedInterval);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(KSizes.tokenCardBorderRadius),
@@ -527,17 +596,14 @@ class TokenCardWidget extends StatelessWidget {
               IndicatorRowWidget(indicators: indicators),
 
               // --- Chart ---
-              if (showChart &&
-                  historicalKlines?[tokenName]?[selectedInterval] != null &&
-                  historicalKlines!.isNotEmpty)
+              if (showChart && chartCandles.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: KSpacing.xs),
                   child: SizedBox(
                     height: 250, // small chart height for token card
                     child: CandlestickChartWidget(
                       symbol: tokenName,
-                      candles:
-                          historicalKlines![tokenName]?[selectedInterval] ?? [],
+                      candles: chartCandles,
                       allowPanAndZoom: allowChartPanAndZoom,
                     ),
                   ),

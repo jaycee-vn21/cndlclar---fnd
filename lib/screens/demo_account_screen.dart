@@ -4,6 +4,7 @@ import 'package:cndlclar/models/demo_paper_account.dart';
 import 'package:cndlclar/models/kline_data.dart';
 import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/providers/interval_provider.dart';
+import 'package:cndlclar/providers/trade_mode_provider.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
 import 'package:cndlclar/screens/individual_token_screen.dart';
 import 'package:cndlclar/services/kline_service.dart';
@@ -32,8 +33,15 @@ class _DemoAccountScreenState extends State<DemoAccountScreen> {
     if (!widget.autoFetch) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TokensProvider>().fetchDemoPaperAccount();
+      _refreshActiveAccount();
     });
+  }
+
+  Future<void> _refreshActiveAccount() {
+    final isDemoMode = context.read<TradeModeProvider>().isDemoMode;
+    return isDemoMode
+        ? context.read<TokensProvider>().fetchDemoPaperAccount()
+        : context.read<TokensProvider>().fetchRealTradeAccount();
   }
 
   String _formatMoney(double value) {
@@ -263,6 +271,59 @@ class _DemoAccountScreenState extends State<DemoAccountScreen> {
     }
   }
 
+  Future<void> _cancelDemoPendingOrder(String symbol) async {
+    final result = await _tradeService.executeTrade(
+      action: 'cancel-pending',
+      symbol: symbol,
+      demoMode: true,
+    );
+
+    if (!mounted) return;
+
+    await context.read<TokensProvider>().fetchDemoPaperAccount();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['success'] == true
+              ? 'Demo pending $symbol order cancelled.'
+              : 'Cancel failed: ${result['error']}',
+          style: const TextStyle(color: KColors.textPrimary),
+        ),
+        backgroundColor: result['success'] == true
+            ? KColors.tradeSuccessfulSnackbar
+            : KColors.tradeFailedSnackbar,
+      ),
+    );
+  }
+
+  Future<void> _cancelRealWaitingOrder(String symbol) async {
+    final result = await _tradeService.executeTrade(
+      action: 'cancel-waiting-order',
+      symbol: symbol,
+    );
+
+    if (!mounted) return;
+
+    await context.read<TokensProvider>().fetchRealTradeAccount();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['success'] == true
+              ? 'Real $symbol waiting/open order cancel requested.'
+              : 'Cancel failed: ${result['error']}',
+          style: const TextStyle(color: KColors.textPrimary),
+        ),
+        backgroundColor: result['success'] == true
+            ? KColors.tradeSuccessfulSnackbar
+            : KColors.tradeFailedSnackbar,
+      ),
+    );
+  }
+
   double _tradeCurrentPrice(String symbol, [double fallbackPrice = 0]) {
     final token = _liveTokenForSymbol(symbol);
     if (token != null) {
@@ -439,6 +500,25 @@ class _DemoAccountScreenState extends State<DemoAccountScreen> {
     );
   }
 
+  Widget _buildModeSelector(TradeModeProvider tradeModeProvider) {
+    return SegmentedButton<bool>(
+      segments: const [
+        ButtonSegment<bool>(value: true, label: Text('Demo')),
+        ButtonSegment<bool>(value: false, label: Text('Real')),
+      ],
+      selected: {tradeModeProvider.isDemoMode},
+      onSelectionChanged: (selection) async {
+        final isDemoMode = selection.first;
+        tradeModeProvider.setDemoMode(isDemoMode);
+        if (isDemoMode) {
+          await context.read<TokensProvider>().fetchDemoPaperAccount();
+        } else {
+          await context.read<TokensProvider>().fetchRealTradeAccount();
+        }
+      },
+    );
+  }
+
   Widget _buildMetricTile({
     required String label,
     required String value,
@@ -552,6 +632,12 @@ class _DemoAccountScreenState extends State<DemoAccountScreen> {
                       style: KTextStyles.signalScore.copyWith(
                         color: KColors.signalSetup,
                       ),
+                    ),
+                    const SizedBox(width: KSpacing.xs),
+                    TextButton(
+                      onPressed: () =>
+                          _cancelDemoPendingOrder(pendingOrder.symbol),
+                      child: const Text('Cancel'),
                     ),
                   ],
                 ),
@@ -934,23 +1020,379 @@ class _DemoAccountScreenState extends State<DemoAccountScreen> {
     );
   }
 
+  List<Map<String, dynamic>> _mapList(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic>? _mapValue(dynamic value) {
+    if (value is! Map) return null;
+    return Map<String, dynamic>.from(value);
+  }
+
+  double _numberValue(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String _stringValue(dynamic value, [String fallback = '']) {
+    final text = value?.toString();
+    if (text == null || text.isEmpty) return fallback;
+    return text;
+  }
+
+  DateTime? _dateValue(dynamic value) {
+    return DateTime.tryParse(value?.toString() ?? '');
+  }
+
+  Widget _buildRealAccountSummary(Map<String, dynamic> account) {
+    final balance = _mapValue(account['balance']);
+    final usdt = _mapValue(balance?['usdt']);
+    final openPositions = _mapList(account['openPositions']);
+    final openOrders = _mapList(account['openOrders']);
+    final activeStrategies = _mapList(account['activeStrategies']);
+    final stats = _mapValue(account['stats']);
+    final error = _stringValue(account['error']);
+
+    return Column(
+      children: [
+        if (error.isNotEmpty) ...[
+          _buildPanel(
+            borderColor: KColors.accentWarning,
+            child: Text(error, style: KTextStyles.scannerMeta),
+          ),
+          const SizedBox(height: KSpacing.sm),
+        ],
+        Row(
+          children: [
+            _buildMetricTile(
+              label: 'USDT free',
+              value: _formatMoney(_numberValue(usdt?['free'])),
+            ),
+            const SizedBox(width: KSpacing.sm),
+            _buildMetricTile(
+              label: 'USDT borrowed',
+              value: _formatMoney(_numberValue(usdt?['borrowed'])),
+              color: KColors.accentWarning,
+            ),
+          ],
+        ),
+        const SizedBox(height: KSpacing.sm),
+        Row(
+          children: [
+            _buildMetricTile(
+              label: 'Waiting',
+              value: '${activeStrategies.length + openOrders.length}',
+            ),
+            const SizedBox(width: KSpacing.sm),
+            _buildMetricTile(
+              label: 'Positions',
+              value: '${openPositions.length}',
+            ),
+          ],
+        ),
+        const SizedBox(height: KSpacing.sm),
+        Row(
+          children: [
+            _buildMetricTile(
+              label: 'Realized P/L',
+              value: _formatSignedMoney(
+                _numberValue(stats?['realizedPnlUSDT']),
+              ),
+              color: _resultColor(_numberValue(stats?['realizedPnlUSDT'])),
+            ),
+            const SizedBox(width: KSpacing.sm),
+            _buildMetricTile(
+              label: 'Margin level',
+              value: _numberValue(balance?['marginLevel']).toStringAsFixed(2),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRealWaitingOrders(Map<String, dynamic> account) {
+    final activeStrategies = _mapList(account['activeStrategies']);
+    final openOrders = _mapList(account['openOrders']);
+
+    if (activeStrategies.isEmpty && openOrders.isEmpty) {
+      return _buildPanel(
+        child: Text(
+          'No real waiting orders found on the backend.',
+          style: KTextStyles.scannerMeta,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        ...activeStrategies.map((strategy) {
+          final symbol = _stringValue(strategy['symbol']);
+          return _buildRealWaitingTile(
+            symbol: symbol,
+            title: symbol.replaceAll('USDT', '/USDT'),
+            status: _stringValue(strategy['status'], 'WAITING'),
+            detail:
+                'EMA${_stringValue(strategy['emaPeriod'], '7')} ${_stringValue(strategy['interval'], '5m')} - target ${_formatDate(_dateValue(strategy['targetStartTime']))}',
+          );
+        }),
+        ...openOrders.map((order) {
+          final symbol = _stringValue(order['symbol']);
+          final type = _stringValue(order['type'], 'ORDER');
+          final side = _stringValue(order['side']);
+          final price = _numberValue(order['price']);
+          final error = _stringValue(order['error']);
+          return _buildRealWaitingTile(
+            symbol: symbol,
+            title: symbol.replaceAll('USDT', '/USDT'),
+            status: error.isEmpty ? '$side $type' : 'ORDER ERROR',
+            detail: error.isEmpty
+                ? 'Price ${price.toStringAsPrecision(6)} - ${_stringValue(order['status'], 'open')}'
+                : error,
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildRealWaitingTile({
+    required String symbol,
+    required String title,
+    required String status,
+    required String detail,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: KSpacing.sm),
+      padding: const EdgeInsets.all(KSpacing.md),
+      decoration: BoxDecoration(
+        color: KColors.controlBackground,
+        border: Border.all(color: KColors.accentWarning.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(KSizes.scannerControlBorderRadius),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildTokenTapTarget(
+              symbol: symbol,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: KTextStyles.tokenMetricValue),
+                  const SizedBox(height: KSpacing.xs),
+                  Text(
+                    '$status - $detail',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: KTextStyles.scannerMeta,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: KSpacing.sm),
+          TextButton(
+            onPressed: symbol.isEmpty
+                ? null
+                : () => _cancelRealWaitingOrder(symbol),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRealOpenPositions(Map<String, dynamic> account) {
+    final positions = _mapList(account['openPositions']);
+    if (positions.isEmpty) {
+      return _buildPanel(
+        child: Text(
+          'No local real open positions recorded.',
+          style: KTextStyles.scannerMeta,
+        ),
+      );
+    }
+
+    return Column(
+      children: positions
+          .map((position) {
+            final symbol = _stringValue(position['symbol']);
+            final entryPrice = _numberValue(position['entryPrice']) > 0
+                ? _numberValue(position['entryPrice'])
+                : _numberValue(position['avgPrice']);
+            final qty = _numberValue(position['executedQty']) > 0
+                ? _numberValue(position['executedQty'])
+                : _numberValue(position['roundedQty']);
+            return _buildTokenTapTarget(
+              symbol: symbol,
+              fallbackPrice: entryPrice,
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: KSpacing.sm),
+                padding: const EdgeInsets.all(KSpacing.md),
+                decoration: BoxDecoration(
+                  color: KColors.controlBackground,
+                  border: Border.all(color: KColors.controlBorder),
+                  borderRadius: BorderRadius.circular(
+                    KSizes.scannerControlBorderRadius,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        symbol.replaceAll('USDT', '/USDT'),
+                        style: KTextStyles.tokenMetricValue,
+                      ),
+                    ),
+                    Text(
+                      '${qty.toStringAsPrecision(6)} @ ${entryPrice.toStringAsPrecision(6)}',
+                      style: KTextStyles.scannerMeta,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+
+  Widget _buildRealTradeHistory(Map<String, dynamic> account) {
+    final trades = _mapList(account['tradeHistory']).reversed.take(30);
+    if (trades.isEmpty) {
+      return _buildPanel(
+        child: Text(
+          'No real trade history found on the VPS yet.',
+          style: KTextStyles.scannerMeta,
+        ),
+      );
+    }
+
+    return Column(
+      children: trades
+          .map((trade) {
+            final symbol = _stringValue(trade['symbol']);
+            final pnl = _numberValue(trade['profitLossUSDT']);
+            final status = _stringValue(
+              trade['status'],
+              _stringValue(
+                trade['type'],
+                _stringValue(trade['eventType'], 'trade'),
+              ),
+            );
+            return _buildTokenTapTarget(
+              symbol: symbol,
+              fallbackPrice: _numberValue(trade['avgPrice']),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: KSpacing.sm),
+                padding: const EdgeInsets.all(KSpacing.md),
+                decoration: BoxDecoration(
+                  color: KColors.controlBackground,
+                  border: Border.all(color: KColors.controlBorder),
+                  borderRadius: BorderRadius.circular(
+                    KSizes.scannerControlBorderRadius,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            symbol.replaceAll('USDT', '/USDT'),
+                            style: KTextStyles.tokenMetricValue,
+                          ),
+                          const SizedBox(height: KSpacing.xs),
+                          Text(status, style: KTextStyles.tokenMetricLabel),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      _formatSignedMoney(pnl),
+                      style: KTextStyles.tokenMetricValue.copyWith(
+                        color: _resultColor(pnl),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+
+  Widget _buildRealAccountView(TokensProvider tokensProvider) {
+    final account = tokensProvider.realTradeAccount;
+    if (account == null) {
+      return _buildPanel(
+        child: Text(
+          'Pull to refresh to load real trade data from the VPS.',
+          style: KTextStyles.scannerMeta,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAccountModeNote('Real mode - backend uses your Binance account'),
+        const SizedBox(height: KSpacing.sm),
+        _buildRealAccountSummary(account),
+        _buildSectionTitle('Waiting Orders'),
+        _buildRealWaitingOrders(account),
+        _buildSectionTitle('Open Positions'),
+        _buildRealOpenPositions(account),
+        _buildSectionTitle('Trade History'),
+        _buildRealTradeHistory(account),
+        const SizedBox(height: KSpacing.sm),
+        Text(
+          'Last update ${_formatDate(_dateValue(account['updatedAt']))}',
+          style: KTextStyles.scannerMeta,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccountModeNote(String text) {
+    return Text(text, style: KTextStyles.scannerMeta);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer<TokensProvider>(
-      builder: (context, tokensProvider, child) {
+    return Consumer2<TokensProvider, TradeModeProvider>(
+      builder: (context, tokensProvider, tradeModeProvider, child) {
         final account = tokensProvider.demoPaperAccount;
         final closedTrades = account.closedTrades;
+        final isDemoMode = tradeModeProvider.isDemoMode;
+        if (!isDemoMode &&
+            tokensProvider.realTradeAccount == null &&
+            !tokensProvider.isRealTradeAccountLoading &&
+            widget.autoFetch) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              context.read<TokensProvider>().fetchRealTradeAccount();
+            }
+          });
+        }
 
         return Scaffold(
           backgroundColor: KColors.background,
           appBar: AppBar(
-            title: const Text('Demo Account', style: KTextStyles.appBarTitle),
+            title: const Text('Account', style: KTextStyles.appBarTitle),
             backgroundColor: Colors.transparent,
             centerTitle: true,
             elevation: 0,
           ),
           body: RefreshIndicator(
-            onRefresh: tokensProvider.fetchDemoPaperAccount,
+            onRefresh: _refreshActiveAccount,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(
@@ -960,43 +1402,46 @@ class _DemoAccountScreenState extends State<DemoAccountScreen> {
                 KSizes.navBarHeight + KSpacing.xl,
               ),
               children: [
-                if (tokensProvider.isDemoPaperAccountLoading)
+                Center(child: _buildModeSelector(tradeModeProvider)),
+                const SizedBox(height: KSpacing.sm),
+                if (tokensProvider.isDemoPaperAccountLoading ||
+                    tokensProvider.isRealTradeAccountLoading)
                   const LinearProgressIndicator(minHeight: 2),
-                Text(
-                  'Manual demo mode - no real orders',
-                  style: KTextStyles.scannerMeta,
-                ),
-                const SizedBox(height: KSpacing.sm),
-                _buildAccountSummary(account),
-                _buildSectionTitle('Open Position'),
-                _buildOpenPosition(account),
-                _buildSectionTitle('Decision Engine'),
-                _buildDecisionSnapshot(account),
-                _buildSectionTitle('Closed Trades'),
-                if (closedTrades.isEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(KSpacing.md),
-                    decoration: BoxDecoration(
-                      color: KColors.controlBackground,
-                      border: Border.all(color: KColors.controlBorder),
-                      borderRadius: BorderRadius.circular(
-                        KSizes.scannerControlBorderRadius,
+                if (isDemoMode) ...[
+                  _buildAccountModeNote('Manual demo mode - no real orders'),
+                  const SizedBox(height: KSpacing.sm),
+                  _buildAccountSummary(account),
+                  _buildSectionTitle('Open Position'),
+                  _buildOpenPosition(account),
+                  _buildSectionTitle('Decision Engine'),
+                  _buildDecisionSnapshot(account),
+                  _buildSectionTitle('Closed Trades'),
+                  if (closedTrades.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(KSpacing.md),
+                      decoration: BoxDecoration(
+                        color: KColors.controlBackground,
+                        border: Border.all(color: KColors.controlBorder),
+                        borderRadius: BorderRadius.circular(
+                          KSizes.scannerControlBorderRadius,
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      'No manual demo trades closed yet. Use Demo mode trade buttons to record fake buys and sells.',
-                      style: KTextStyles.scannerMeta,
-                    ),
-                  )
-                else
-                  ...closedTrades.map(_buildTradeTile),
-                const SizedBox(height: KSpacing.sm),
-                Text(
-                  'Last update ${_formatDate(account.updatedAt)}',
-                  style: KTextStyles.scannerMeta,
-                  textAlign: TextAlign.center,
-                ),
+                      child: Text(
+                        'No manual demo trades closed yet. Use Demo mode trade buttons to record fake buys and sells.',
+                        style: KTextStyles.scannerMeta,
+                      ),
+                    )
+                  else
+                    ...closedTrades.map(_buildTradeTile),
+                  const SizedBox(height: KSpacing.sm),
+                  Text(
+                    'Last update ${_formatDate(account.updatedAt)}',
+                    style: KTextStyles.scannerMeta,
+                    textAlign: TextAlign.center,
+                  ),
+                ] else
+                  _buildRealAccountView(tokensProvider),
               ],
             ),
           ),

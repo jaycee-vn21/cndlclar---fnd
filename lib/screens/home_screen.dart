@@ -9,6 +9,7 @@ import 'package:cndlclar/services/trade_service.dart';
 import 'package:cndlclar/services/kline_service.dart';
 import 'package:cndlclar/providers/tokens_provider.dart';
 import 'package:cndlclar/providers/sorting_field_provider.dart';
+import 'package:cndlclar/providers/trade_mode_provider.dart';
 import 'package:cndlclar/screens/individual_token_screen.dart';
 import 'package:cndlclar/widgets/token_list_view_section.dart';
 import 'package:cndlclar/utils/constants.dart';
@@ -47,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<String> _historicalFetchesCompleted = {};
   final Set<String> _historicalFetchesQueued = {};
   final Map<String, DateTime> _historicalFetchFailures = {};
+  final Map<String, DateTime> _historicalFetchCompletedAt = {};
   final Queue<_HistoricalFetchRequest> _historicalFetchQueue =
       Queue<_HistoricalFetchRequest>();
   bool _isProcessingHistoricalFetchQueue = false;
@@ -55,12 +57,13 @@ class _HomeScreenState extends State<HomeScreen> {
   IntervalProvider? _intervalProvider;
   _TokenFeedMode _feedMode = _TokenFeedMode.all;
   _SignalFeedFilter _signalFilter = _SignalFeedFilter.all;
-  bool _isDemoTradeMode = true;
   bool _isSearchOpen = false;
   String _searchQuery = '';
 
   static const _historicalFetchRetryDelay = Duration(seconds: 20);
+  static const _historicalStaleRefreshDelay = Duration(seconds: 15);
   static const _historicalFetchSpacing = Duration(milliseconds: 120);
+  static const _liveCandleBoundaryTolerance = Duration(seconds: 5);
 
   Future<void> _handleTrade({
     required String action, // "buy" or "sell"
@@ -75,10 +78,11 @@ class _HomeScreenState extends State<HomeScreen> {
     double? autoSellProfitPercent,
     String? interval,
   }) async {
+    final isDemoTradeMode = context.read<TradeModeProvider>().isDemoMode;
     final result = await _tradeService.executeTrade(
       action: action,
       symbol: symbol,
-      demoMode: _isDemoTradeMode,
+      demoMode: isDemoTradeMode,
       currentPrice: currentPrice,
       requestedLeverage: requestedLeverage,
       priceToBuy: priceToBuy,
@@ -94,10 +98,14 @@ class _HomeScreenState extends State<HomeScreen> {
       final isAccepted = data['status']?.toString() == 'accepted';
       final statusLabel = isAccepted ? 'Accepted' : 'Successful';
       final displayAction = actionLabel ?? action.toUpperCase();
-      final modeLabel = _isDemoTradeMode ? 'Demo' : 'Real';
+      final modeLabel = isDemoTradeMode ? 'Demo' : 'Real';
 
-      if (_isDemoTradeMode && mounted) {
-        await context.read<TokensProvider>().fetchDemoPaperAccount();
+      if (mounted) {
+        if (isDemoTradeMode) {
+          await context.read<TokensProvider>().fetchDemoPaperAccount();
+        } else {
+          await context.read<TokensProvider>().fetchRealTradeAccount();
+        }
       }
 
       if (!mounted) return;
@@ -202,11 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (tokens.isEmpty) return;
 
     final selectedInterval = _intervalProvider?.selectedInterval ?? '5m';
-    final intervalsToSync = <String>{
-      '5m',
-      '30m',
-      if (widget.showCharts) selectedInterval,
-    };
+    final intervalsToSync = <String>{'5m', '30m', selectedInterval};
     var didUpdateLiveCandles = false;
 
     for (final interval in intervalsToSync) {
@@ -222,12 +226,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _ensureHistoricalKlinesForToken(Token token) async {
     final selectedInterval = _intervalProvider?.selectedInterval ?? '5m';
-    if (_historicalKlines[token.name]?[selectedInterval]?.isNotEmpty == true) {
+    final needsRefresh = _shouldRefreshHistoricalForLiveCandle(
+      token,
+      selectedInterval,
+    );
+    if (_historicalKlines[token.name]?[selectedInterval]?.isNotEmpty == true &&
+        !needsRefresh) {
       return;
     }
 
     final key = _historicalKey(token.name, selectedInterval);
     if (_historicalFetchesInFlight.contains(key)) return;
+    if (needsRefresh) _invalidateHistoricalFetch(key);
 
     _historicalFetchesInFlight.add(key);
     try {
@@ -237,8 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (hasHistoricalCandles) {
-        _historicalFetchesCompleted.add(key);
-        _historicalFetchFailures.remove(key);
+        _markHistoricalFetchCompleted(key);
       } else {
         _historicalFetchFailures[key] = DateTime.now();
       }
@@ -323,8 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         _historicalFetchesInFlight.remove(request.key);
         if (hasHistoricalCandles) {
-          _historicalFetchesCompleted.add(request.key);
-          _historicalFetchFailures.remove(request.key);
+          _markHistoricalFetchCompleted(request.key);
         } else {
           _historicalFetchFailures[request.key] = DateTime.now();
         }
@@ -375,6 +383,15 @@ class _HomeScreenState extends State<HomeScreen> {
       final tokenCandles = _historicalKlines.putIfAbsent(token.name, () => {});
       final currentCandles =
           tokenCandles[selectedInterval] ?? const <KlineData>[];
+      final key = _historicalKey(token.name, selectedInterval);
+
+      if (_shouldRefreshHistoricalForLiveCandle(
+        token,
+        selectedInterval,
+        candles: currentCandles,
+      )) {
+        _invalidateHistoricalFetch(key, respectCooldown: true);
+      }
 
       tokenCandles[selectedInterval] = _upsertLiveCandle(
         currentCandles,
@@ -419,6 +436,82 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  bool _shouldRefreshHistoricalForLiveCandle(
+    Token token,
+    String selectedInterval, {
+    List<KlineData>? candles,
+  }) {
+    final liveStartTime = token.startTime(selectedInterval);
+    final intervalDuration = _intervalDuration(selectedInterval);
+    if (liveStartTime == null || intervalDuration == null) return false;
+
+    final currentCandles =
+        candles ?? _historicalKlines[token.name]?[selectedInterval];
+    if (currentCandles == null || currentCandles.isEmpty) return false;
+
+    final sortedCandles = _sortedLimitedCandles(currentCandles);
+    if (_hasCandleTimeGap(sortedCandles, intervalDuration)) return true;
+
+    final latestCachedCandle = sortedCandles.last;
+    final liveGap = liveStartTime.difference(latestCachedCandle.time);
+
+    if (liveGap <= Duration.zero) return false;
+    if (liveGap > intervalDuration + _liveCandleBoundaryTolerance) return true;
+
+    final crossedIntoNextCandle =
+        liveGap + _liveCandleBoundaryTolerance >= intervalDuration;
+    return crossedIntoNextCandle && !latestCachedCandle.isClosed;
+  }
+
+  bool _invalidateHistoricalFetch(String key, {bool respectCooldown = false}) {
+    if (respectCooldown && _wasHistoricalFetchedRecently(key)) return false;
+
+    _historicalFetchesCompleted.remove(key);
+    _historicalFetchFailures.remove(key);
+    return true;
+  }
+
+  void _markHistoricalFetchCompleted(String key) {
+    _historicalFetchesCompleted.add(key);
+    _historicalFetchCompletedAt[key] = DateTime.now();
+    _historicalFetchFailures.remove(key);
+  }
+
+  bool _wasHistoricalFetchedRecently(String key) {
+    final completedAt = _historicalFetchCompletedAt[key];
+    if (completedAt == null) return false;
+    return DateTime.now().difference(completedAt) <
+        _historicalStaleRefreshDelay;
+  }
+
+  bool _hasCandleTimeGap(
+    List<KlineData> sortedCandles,
+    Duration intervalDuration,
+  ) {
+    for (var index = 1; index < sortedCandles.length; index += 1) {
+      final gap = sortedCandles[index].time.difference(
+        sortedCandles[index - 1].time,
+      );
+      if (gap > intervalDuration + _liveCandleBoundaryTolerance) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  Duration? _intervalDuration(String interval) {
+    if (interval.length < 2) return null;
+
+    final value = int.tryParse(interval.substring(0, interval.length - 1));
+    if (value == null) return null;
+
+    if (interval.endsWith('m')) return Duration(minutes: value);
+    if (interval.endsWith('h')) return Duration(hours: value);
+    if (interval.endsWith('d')) return Duration(days: value);
+    return null;
+  }
+
   double _openFromCloseAndChange(double close, double priceChangePercent) {
     final factor = 1 + (priceChangePercent / 100);
     if (factor <= 0) return close;
@@ -440,20 +533,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _sortedLimitedCandles(updated);
     }
 
-    final existing = updated[existingIndex];
-    updated[existingIndex] = KlineData(
-      time: existing.time,
-      open: existing.open,
-      high: math.max(existing.high, liveCandle.high),
-      low: math.min(existing.low, liveCandle.low),
-      close: liveCandle.close,
-      volume: liveCandle.volume > 0 ? liveCandle.volume : existing.volume,
-      volumeUsdt: liveCandle.volumeUsdt > 0
-          ? liveCandle.volumeUsdt
-          : existing.volumeUsdt,
-      netVolumeUsdt: liveCandle.netVolumeUsdt,
-      isClosed: liveCandle.isClosed,
-    );
+    updated[existingIndex] = liveCandle;
 
     return updated;
   }
@@ -834,6 +914,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tradeModeProvider = context.watch<TradeModeProvider>();
+
     return Scaffold(
       backgroundColor: KColors.background,
       appBar: AppBar(
@@ -849,19 +931,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _isDemoTradeMode ? 'Demo' : 'Real',
+                        tradeModeProvider.isDemoMode ? 'Demo' : 'Real',
                         style: KTextStyles.scannerMeta.copyWith(
-                          color: _isDemoTradeMode
+                          color: tradeModeProvider.isDemoMode
                               ? KColors.accentWarning
                               : KColors.accentNegative,
                         ),
                       ),
                       Switch.adaptive(
-                        value: !_isDemoTradeMode,
+                        value: tradeModeProvider.isRealMode,
                         activeThumbColor: KColors.accentNegative,
                         inactiveThumbColor: KColors.accentWarning,
                         onChanged: (isRealMode) {
-                          setState(() => _isDemoTradeMode = !isRealMode);
+                          tradeModeProvider.setDemoMode(!isRealMode);
                         },
                       ),
                     ],

@@ -629,6 +629,7 @@ class TokenListViewSection extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.only(bottom: KSpacing.md),
                             child: TokenCardWidget(
+                              liveToken: token,
                               tokenName: token.name,
                               currentPrice: token.closePrice(selectedInterval),
                               selectedIntervalChange: token.priceChange(

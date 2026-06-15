@@ -5,6 +5,7 @@ import 'package:cndlclar/models/short_term_buy_candidate.dart';
 import 'package:cndlclar/models/token.dart';
 import 'package:cndlclar/models/indicator.dart';
 import 'package:cndlclar/services/demo_paper_account_service.dart';
+import 'package:cndlclar/services/real_trade_account_service.dart';
 import 'package:cndlclar/services/socket_manager.dart';
 import 'package:cndlclar/utils/config.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
@@ -14,8 +15,10 @@ class TokensProvider with ChangeNotifier {
   List<Token> _tokens = [];
   List<ShortTermBuyCandidate> _shortTermBuyCandidates = [];
   DemoPaperAccount _demoPaperAccount = DemoPaperAccount.initial();
+  Map<String, dynamic>? _realTradeAccount;
   DateTime? _shortTermBuyCandidatesUpdatedAt;
   bool _isDemoPaperAccountLoading = false;
+  bool _isRealTradeAccountLoading = false;
 
   // Stores sparkline per token and interval for quick updates
   Map<String, Map<String, List<double>>> tokenSparklines = {};
@@ -31,7 +34,9 @@ class TokensProvider with ChangeNotifier {
   DateTime? get shortTermBuyCandidatesUpdatedAt =>
       _shortTermBuyCandidatesUpdatedAt;
   DemoPaperAccount get demoPaperAccount => _demoPaperAccount;
+  Map<String, dynamic>? get realTradeAccount => _realTradeAccount;
   bool get isDemoPaperAccountLoading => _isDemoPaperAccountLoading;
+  bool get isRealTradeAccountLoading => _isRealTradeAccountLoading;
 
   Map<String, ShortTermBuyCandidate> get shortTermBuyCandidatesBySymbol => {
     for (final candidate in _shortTermBuyCandidates)
@@ -115,6 +120,23 @@ class TokensProvider with ChangeNotifier {
     }
 
     _isDemoPaperAccountLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> fetchRealTradeAccount() async {
+    if (_isRealTradeAccountLoading) return;
+
+    _isRealTradeAccountLoading = true;
+    notifyListeners();
+
+    final service = RealTradeAccountService(baseUrl: AppConfig.baseUrl);
+    final account = await service.fetchRealTradeAccount();
+
+    if (account != null) {
+      _realTradeAccount = account;
+    }
+
+    _isRealTradeAccountLoading = false;
     notifyListeners();
   }
 
