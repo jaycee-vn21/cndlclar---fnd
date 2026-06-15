@@ -7,6 +7,21 @@ class RealTradeAccountService {
 
   final String baseUrl;
 
+  Map<String, dynamic> _errorSnapshot(String message) {
+    return {
+      'mode': 'real',
+      'updatedAt': DateTime.now().toIso8601String(),
+      'binanceAvailable': false,
+      'balance': null,
+      'openPositions': [],
+      'activeStrategies': [],
+      'openOrders': [],
+      'tradeHistory': [],
+      'stats': {'totalHistoryItems': 0, 'realizedPnlUSDT': 0},
+      'error': message,
+    };
+  }
+
   Future<Map<String, dynamic>?> fetchRealTradeAccount() async {
     final url = Uri.parse('$baseUrl/api/v1/data/real-account');
 
@@ -14,17 +29,27 @@ class RealTradeAccountService {
       final response = await http
           .get(url, headers: {'x-device-token': AppConfig.deviceToken})
           .timeout(const Duration(seconds: 8));
-      if (response.statusCode != 200) return null;
 
       final decoded = jsonDecode(response.body);
-      if (decoded is! Map) return null;
+      if (decoded is! Map) {
+        return _errorSnapshot('Real account returned an invalid response.');
+      }
+
+      if (response.statusCode != 200) {
+        return _errorSnapshot(
+          decoded['message']?.toString() ??
+              'Real account request failed with HTTP ${response.statusCode}.',
+        );
+      }
 
       final data = decoded['data'];
-      if (data is! Map) return null;
+      if (data is! Map) {
+        return _errorSnapshot('Real account response is missing data.');
+      }
 
       return Map<String, dynamic>.from(data);
-    } catch (_) {
-      return null;
+    } catch (error) {
+      return _errorSnapshot('Real account request failed: $error');
     }
   }
 }
